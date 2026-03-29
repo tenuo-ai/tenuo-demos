@@ -383,7 +383,7 @@ async def _fire_trigger_for_warrant() -> str:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{control_plane}/api/v1/triggers/ap-invoice-batch-v5/fire",
+                f"{control_plane}/api/v1/triggers/ap-invoice-batch-v7/fire",
                 headers={"Authorization": admin_key},
                 json={
                     "initiator": {"type": "api_key", "identity": "demo-presenter"},
@@ -407,7 +407,7 @@ async def _fire_trigger_for_warrant() -> str:
                     "type": "warrant_issued",
                     "warrant_id": data.get("warrant_id"),
                     "expires_at": data.get("expires_at"),
-                    "trigger": "ap-invoice-batch-v5",
+                    "trigger": "ap-invoice-batch-v7",
                 })
             return warrant
     except Exception as e:
