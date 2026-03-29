@@ -446,6 +446,7 @@ async def _run_agent_graph():
         await publish({"type": "demo_completed", "results": str(result.get("processing_results", {}))})
 
     except Exception as e:
+        logger.error(f"Demo error: {e}", exc_info=True)
         await publish({"type": "demo_error", "error": str(e)})
     finally:
         _demo_state["running"] = False
