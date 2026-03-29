@@ -102,7 +102,7 @@ export function AuthDecisionPanel() {
       )}
 
       <div className="space-y-2">
-        {sections.map(({ decisions, isAttack, hasTenuoDeny, allStandardAllow }, i) => {
+        {sections.map(({ decisions, isAttack, hasTenuoDeny, allStandardAllow }) => {
           const first = decisions[0]
           const isBankViolation = decisions.some(
             (d) => d.layer === 'tenuo' && d.reason?.includes('bank_account')
