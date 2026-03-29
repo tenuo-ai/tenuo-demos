@@ -277,9 +277,9 @@ async def run_demo(
         from attacks.mode3_simulated_compromise import simulate_attack
         return await simulate_attack()
 
-    # Issue root warrant (Level 1) — all tools, unconstrained.
-    # Delegation to specialists will attenuate per-invoice with live DB data.
-    if os.environ.get("TENUO_MODE", "local") == "local":
+    # Only issue warrants in Act 3 (auth_stack == "tenuo").
+    # Act 2 runs without warrants — standard auth only.
+    if auth_stack == "tenuo" and os.environ.get("TENUO_MODE", "local") == "local":
         from auth.tenuo_local import issue_root_warrant
         warrant_b64 = issue_root_warrant()
         await log_status("system", "Issued Level 1 root warrant (12 tools, unconstrained)")
