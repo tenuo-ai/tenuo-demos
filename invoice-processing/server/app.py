@@ -249,14 +249,44 @@ async def get_invoice_auth_summary():
             "timestamp": recs[0]["created_at"].isoformat() if recs[0]["created_at"] else None,
         })
 
+    # Assign unmatched tool calls to invoices by timestamp proximity.
+    # Invoices are processed sequentially, so each call belongs to the
+    # invoice being processed at that time.
+    matched = [tc for tc in tool_calls if tc["invoice_id"] is not None]
+    unmatched = [tc for tc in tool_calls if tc["invoice_id"] is None]
+
+    # Build time windows per invoice from matched calls
+    invoice_windows: dict[str, list[str]] = {}  # invoice_id -> [timestamps]
+    for tc in matched:
+        inv_id = tc["invoice_id"]
+        if inv_id not in invoice_windows:
+            invoice_windows[inv_id] = []
+        if tc["timestamp"]:
+            invoice_windows[inv_id].append(tc["timestamp"])
+
+    # Assign unmatched calls to the nearest invoice by timestamp
+    for tc in unmatched:
+        if not tc["timestamp"]:
+            continue
+        best_inv = None
+        best_dist = float("inf")
+        for inv_id, timestamps in invoice_windows.items():
+            for ts in timestamps:
+                dist = abs(hash(tc["timestamp"]) - hash(ts))
+                if dist < best_dist:
+                    best_dist = dist
+                    best_inv = inv_id
+        if best_inv:
+            tc["invoice_id"] = best_inv
+
     # Build per-invoice summary
+    all_calls = matched + [tc for tc in unmatched if tc["invoice_id"] is not None]
     result = []
-    processed_ids = set()
     for inv in invoices:
         inv_id = inv["id"]
-        processed_ids.add(inv_id)
-        inv_calls = [tc for tc in tool_calls if tc["invoice_id"] == inv_id]
-        # Also include calls without invoice_id that happened for this invoice's vendor
+        inv_calls = [tc for tc in all_calls if tc["invoice_id"] == inv_id]
+        if not inv_calls:
+            continue
         result.append({
             "invoice": {
                 "id": inv_id,
@@ -271,14 +301,6 @@ async def get_invoice_auth_summary():
                 "bank_routing": inv["bank_routing"],
             },
             "tool_calls": inv_calls,
-        })
-
-    # Add unmatched tool calls (those without invoice_id in args)
-    unmatched = [tc for tc in tool_calls if tc["invoice_id"] is None and tc["tool_name"] not in ("list_invoices",)]
-    if unmatched:
-        result.append({
-            "invoice": {"id": "other", "vendor_name": "Other operations", "amount": 0},
-            "tool_calls": unmatched,
         })
 
     return result
