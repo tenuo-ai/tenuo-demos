@@ -198,6 +198,92 @@ async def get_auth_decisions():
     return [dict(r) for r in rows]
 
 
+@app.get("/api/db/invoice-auth-summary")
+async def get_invoice_auth_summary():
+    """Auth decisions grouped by invoice with invoice details."""
+    from tools.db import get_pool
+    pool = await get_pool()
+
+    # Get invoices that were processed (have auth decisions)
+    invoices = await pool.fetch("""
+        SELECT DISTINCT ON (i.id) i.id, i.vendor_id, i.amount, i.currency, i.description,
+               i.status, i.notes, v.name as vendor_name, v.bank_account, v.bank_routing
+        FROM invoices i
+        JOIN vendors v ON i.vendor_id = v.id
+        WHERE i.id IN (
+            SELECT DISTINCT (tool_args::json->>'invoice_id')
+            FROM auth_decisions WHERE tool_args::json->>'invoice_id' IS NOT NULL
+        ) OR i.status != 'pending'
+        ORDER BY i.id
+    """)
+
+    # Get all auth decisions grouped by request_id
+    decisions = await pool.fetch("""
+        SELECT request_id, agent_id, tool_name, tool_args, layer, decision, reason, latency_us,
+               created_at
+        FROM auth_decisions ORDER BY created_at
+    """)
+
+    # Group decisions by tool call (request_id)
+    from itertools import groupby
+    tool_calls = []
+    for req_id, group in groupby(decisions, key=lambda r: r["request_id"]):
+        recs = list(group)
+        # Try to extract invoice_id from tool_args
+        invoice_id = None
+        try:
+            import json
+            args = json.loads(recs[0]["tool_args"]) if recs[0]["tool_args"] else {}
+            invoice_id = args.get("invoice_id")
+        except Exception:
+            pass
+        tool_calls.append({
+            "request_id": req_id,
+            "agent_id": recs[0]["agent_id"],
+            "tool_name": recs[0]["tool_name"],
+            "invoice_id": invoice_id,
+            "layers": {
+                r["layer"]: {"decision": r["decision"], "reason": r["reason"], "latency_us": r["latency_us"]}
+                for r in recs
+            },
+            "timestamp": recs[0]["created_at"].isoformat() if recs[0]["created_at"] else None,
+        })
+
+    # Build per-invoice summary
+    result = []
+    processed_ids = set()
+    for inv in invoices:
+        inv_id = inv["id"]
+        processed_ids.add(inv_id)
+        inv_calls = [tc for tc in tool_calls if tc["invoice_id"] == inv_id]
+        # Also include calls without invoice_id that happened for this invoice's vendor
+        result.append({
+            "invoice": {
+                "id": inv_id,
+                "vendor_id": inv["vendor_id"],
+                "vendor_name": inv["vendor_name"],
+                "amount": float(inv["amount"]),
+                "currency": inv["currency"],
+                "description": inv["description"],
+                "status": inv["status"],
+                "notes": inv["notes"],
+                "bank_account": inv["bank_account"],
+                "bank_routing": inv["bank_routing"],
+            },
+            "tool_calls": inv_calls,
+        })
+
+    # Add unmatched tool calls (those without invoice_id in args)
+    unmatched = [tc for tc in tool_calls if tc["invoice_id"] is None and tc["tool_name"] not in ("list_invoices",)]
+    if unmatched:
+        result.append({
+            "invoice": {"id": "other", "vendor_name": "Other operations", "amount": 0},
+            "tool_calls": unmatched,
+        })
+
+    return result
+
+
 @app.get("/api/portal/invoice/{invoice_id}")
 async def proxy_invoice(invoice_id: str):
     """Proxy invoice fetch from vendor portal (for dashboard inspector)."""

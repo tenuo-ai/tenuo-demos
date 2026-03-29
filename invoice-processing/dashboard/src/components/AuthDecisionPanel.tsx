@@ -1,21 +1,13 @@
 /**
- * Authorization decisions as a table — one row per tool call, one column per auth layer.
+ * Authorization decisions grouped by invoice.
  *
- * The presenter glances at this and says:
- * "Every standard auth layer says yes. Tenuo says no."
+ * Each invoice is a collapsible section showing:
+ * - Invoice header (ID, vendor, amount)
+ * - Invoice details (description, notes — click to expand)
+ * - Auth decision table (one row per tool call, one column per auth layer)
  */
 import { useEffect, useState } from 'react'
-import { fetchAuthDecisions } from '../lib/api'
-
-interface AuthRecord {
-  request_id: string
-  agent_id: string
-  tool_name: string
-  layer: string
-  decision: string
-  reason: string
-  latency_us: number
-}
+import { fetchInvoiceAuthSummary } from '../lib/api'
 
 const LAYERS = ['gcp_sa', 'oauth', 'spicedb', 'opa', 'tenuo']
 const LAYER_LABELS: Record<string, string> = {
@@ -26,39 +18,48 @@ const LAYER_LABELS: Record<string, string> = {
   tenuo: 'Tenuo',
 }
 
-const ATTACK_TOOLS = new Set(['update_vendor_bank', 'initiate_payment'])
+interface LayerDecision {
+  decision: string
+  reason: string
+  latency_us: number
+}
 
 interface ToolCall {
-  requestId: string
-  agent: string
-  tool: string
-  layers: Record<string, { decision: string; reason: string; latency: number }>
+  request_id: string
+  agent_id: string
+  tool_name: string
+  invoice_id: string | null
+  layers: Record<string, LayerDecision>
 }
 
-function buildTable(records: AuthRecord[]): ToolCall[] {
-  const byRequest: Record<string, AuthRecord[]> = {}
-  for (const r of records) {
-    if (!byRequest[r.request_id]) byRequest[r.request_id] = []
-    byRequest[r.request_id].push(r)
-  }
-
-  return Object.entries(byRequest).map(([requestId, recs]) => ({
-    requestId,
-    agent: recs[0].agent_id,
-    tool: recs[0].tool_name,
-    layers: Object.fromEntries(
-      recs.map((r) => [r.layer, { decision: r.decision, reason: r.reason, latency: r.latency_us }])
-    ),
-  }))
+interface InvoiceInfo {
+  id: string
+  vendor_id?: string
+  vendor_name?: string
+  amount?: number
+  currency?: string
+  description?: string
+  status?: string
+  notes?: string
+  bank_account?: string
+  bank_routing?: string
 }
+
+interface InvoiceSummary {
+  invoice: InvoiceInfo
+  tool_calls: ToolCall[]
+}
+
+const ATTACKER_ACCOUNT = '8847291034'
 
 export function AuthDecisionPanel() {
-  const [records, setRecords] = useState<AuthRecord[]>([])
+  const [summaries, setSummaries] = useState<InvoiceSummary[]>([])
+  const [expanded, setExpanded] = useState<string | null>(null)
 
   useEffect(() => {
     const poll = async () => {
       try {
-        setRecords(await fetchAuthDecisions())
+        setSummaries(await fetchInvoiceAuthSummary())
       } catch { /* ignore */ }
     }
     poll()
@@ -66,11 +67,12 @@ export function AuthDecisionPanel() {
     return () => clearInterval(interval)
   }, [])
 
-  const rows = buildTable(records)
-  const hasTenuo = records.some((r) => r.layer === 'tenuo')
+  const hasTenuo = summaries.some((s) =>
+    s.tool_calls.some((tc) => tc.layers.tenuo)
+  )
   const visibleLayers = hasTenuo ? LAYERS : LAYERS.filter((l) => l !== 'tenuo')
 
-  if (rows.length === 0) {
+  if (summaries.length === 0) {
     return (
       <div className="p-4">
         <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
@@ -83,133 +85,179 @@ export function AuthDecisionPanel() {
     )
   }
 
-  // Sort: Tenuo denials first, then attack tools, then rest
-  const sorted = [...rows].sort((a, b) => {
-    const aDeny = a.layers.tenuo?.decision === 'deny'
-    const bDeny = b.layers.tenuo?.decision === 'deny'
-    if (aDeny && !bDeny) return -1
-    if (!aDeny && bDeny) return 1
-    const aAttack = ATTACK_TOOLS.has(a.tool)
-    const bAttack = ATTACK_TOOLS.has(b.tool)
-    if (aAttack && !bAttack) return -1
-    if (!aAttack && bAttack) return 1
-    return 0
-  })
-
   return (
     <div className="p-4">
-      <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
+      <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
         Authorization Decisions
       </h2>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-gray-800">
-              <th className="py-2 text-left text-gray-500 font-medium w-48">Tool Call</th>
-              {visibleLayers.map((layer) => (
-                <th
-                  key={layer}
-                  className={`py-2 text-center font-medium w-16 ${
-                    layer === 'tenuo' ? 'text-green-400' : 'text-gray-500'
-                  }`}
-                >
-                  {LAYER_LABELS[layer]}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((row) => {
-              const isAttack = ATTACK_TOOLS.has(row.tool)
-              const tenuoDeny = row.layers.tenuo?.decision === 'deny'
-              const allStandardAllow = LAYERS
-                .filter((l) => l !== 'tenuo')
-                .every((l) => !row.layers[l] || row.layers[l].decision === 'allow')
+      <div className="space-y-4">
+        {summaries.filter((s) => s.tool_calls.length > 0).map((summary) => {
+          const inv = summary.invoice
+          const isExpanded = expanded === inv.id
+          const hasAttack = summary.tool_calls.some(
+            (tc) => tc.tool_name === 'update_vendor_bank'
+          )
+          const hasTenuoDeny = summary.tool_calls.some(
+            (tc) => tc.layers.tenuo?.decision === 'deny'
+          )
+          const bankPoisoned = inv.bank_account === ATTACKER_ACCOUNT
 
-              return (
-                <tr
-                  key={row.requestId}
-                  className={`border-b ${
-                    tenuoDeny
-                      ? 'border-red-900 bg-red-950/30'
-                      : isAttack && allStandardAllow
-                        ? 'border-yellow-900/50 bg-yellow-950/10'
-                        : 'border-gray-900'
-                  }`}
-                >
-                  {/* Tool name */}
-                  <td className="py-2 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-gray-600 text-[10px]">{row.agent.split('-')[0]}</span>
-                      <span className={`font-medium ${
-                        tenuoDeny ? 'text-red-400' : isAttack ? 'text-yellow-400' : 'text-gray-300'
-                      }`}>
-                        {row.tool}
+          return (
+            <div
+              key={inv.id}
+              className={`rounded-lg border overflow-hidden ${
+                hasTenuoDeny
+                  ? 'border-green-800 bg-green-950/10'
+                  : hasAttack
+                    ? 'border-red-800 bg-red-950/10'
+                    : 'border-gray-800 bg-gray-900/50'
+              }`}
+            >
+              {/* Invoice header — click to expand */}
+              <button
+                onClick={() => setExpanded(isExpanded ? null : inv.id)}
+                className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-gray-800/30 transition-colors"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-gray-200">{inv.id}</span>
+                    <span className="text-xs text-gray-500">{inv.vendor_name}</span>
+                    {inv.amount ? (
+                      <span className="text-xs text-gray-400">
+                        ${inv.amount?.toLocaleString()} {inv.currency}
                       </span>
-                      {tenuoDeny && (
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-red-900 text-red-300">
-                          BLOCKED
-                        </span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {hasAttack && !hasTenuoDeny && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">
+                        ATTACK SUCCEEDED
+                      </span>
+                    )}
+                    {hasTenuoDeny && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900 text-green-300">
+                        ATTACK BLOCKED BY TENUO
+                      </span>
+                    )}
+                    {bankPoisoned && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400">
+                        Bank changed to attacker
+                      </span>
+                    )}
+                    <span className="text-[10px] text-gray-600">
+                      {summary.tool_calls.length} tool calls
+                    </span>
+                  </div>
+                </div>
+                <span className="text-gray-600 text-xs">{isExpanded ? '▾' : '▸'}</span>
+              </button>
+
+              {/* Expanded: invoice details + auth table */}
+              {isExpanded && (
+                <div className="border-t border-gray-800">
+                  {/* Invoice details */}
+                  {inv.description && (
+                    <div className="px-4 py-2 bg-gray-900/50 text-xs">
+                      <div className="text-gray-500">{inv.description}</div>
+                      {inv.notes && (
+                        <div className={`mt-2 p-2 rounded border font-mono whitespace-pre-wrap text-[10px] ${
+                          hasAttack
+                            ? 'bg-red-950/30 border-red-800 text-red-300'
+                            : 'bg-gray-800 border-gray-700 text-gray-400'
+                        }`}>
+                          <div className="text-[9px] text-gray-600 mb-1">Notes field:</div>
+                          {inv.notes}
+                        </div>
                       )}
                     </div>
-                    {tenuoDeny && row.layers.tenuo?.reason && (
-                      <div className="text-[10px] text-red-400/70 mt-0.5 pl-1">
-                        {row.layers.tenuo.reason.includes('bank_account')
-                          ? 'bank_account mismatch — warrant pinned to legitimate account'
-                          : row.layers.tenuo.reason.includes('not authorize')
-                            ? 'tool not in warrant capabilities'
-                            : row.layers.tenuo.reason
-                        }
-                      </div>
-                    )}
-                  </td>
+                  )}
 
-                  {/* Auth layers */}
-                  {visibleLayers.map((layer) => {
-                    const d = row.layers[layer]
-                    if (!d) return <td key={layer} className="py-2 text-center text-gray-800">—</td>
+                  {/* Auth decisions table */}
+                  <div className="px-4 py-2">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="border-b border-gray-800">
+                          <th className="py-1.5 text-left text-gray-500 font-medium">Tool</th>
+                          {visibleLayers.map((layer) => (
+                            <th
+                              key={layer}
+                              className={`py-1.5 text-center font-medium w-14 ${
+                                layer === 'tenuo' ? 'text-green-400' : 'text-gray-500'
+                              }`}
+                            >
+                              {LAYER_LABELS[layer]}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {summary.tool_calls.map((tc) => {
+                          const tenuoDeny = tc.layers.tenuo?.decision === 'deny'
+                          const isAttackTool = tc.tool_name === 'update_vendor_bank'
 
-                    const isAllow = d.decision === 'allow'
-                    const isTenuo = layer === 'tenuo'
-
-                    return (
-                      <td
-                        key={layer}
-                        className="py-2 text-center"
-                        title={d.reason}
-                      >
-                        <span className={`text-base ${
-                          isAllow
-                            ? isTenuo
-                              ? 'text-green-400'
-                              : tenuoDeny
-                                ? 'text-green-500'  // Bright green when standard approves but Tenuo denies
-                                : 'text-green-700'
-                            : isTenuo
-                              ? 'text-red-400 font-bold'
-                              : 'text-red-500'
-                        }`}>
-                          {isAllow ? '✓' : '✗'}
-                        </span>
-                      </td>
-                    )
-                  })}
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Summary */}
-      <div className="mt-3 text-[10px] text-gray-600">
-        {rows.length} tool calls · {visibleLayers.length} auth layers
-        {hasTenuo && (() => {
-          const denied = rows.filter((r) => r.layers.tenuo?.decision === 'deny').length
-          const allowed = rows.filter((r) => r.layers.tenuo?.decision === 'allow').length
-          return ` · Tenuo: ${allowed} allowed, ${denied} blocked`
-        })()}
+                          return (
+                            <tr
+                              key={tc.request_id}
+                              className={`border-b ${
+                                tenuoDeny
+                                  ? 'border-red-900/50 bg-red-950/20'
+                                  : isAttackTool
+                                    ? 'border-yellow-900/30 bg-yellow-950/10'
+                                    : 'border-gray-900/50'
+                              }`}
+                            >
+                              <td className="py-1.5">
+                                <span className={`${
+                                  tenuoDeny ? 'text-red-400' : isAttackTool ? 'text-yellow-400' : 'text-gray-300'
+                                }`}>
+                                  {tc.tool_name}
+                                </span>
+                                {tenuoDeny && (
+                                  <div className="text-[9px] text-red-400/70 mt-0.5">
+                                    {tc.layers.tenuo?.reason?.includes('not authorize')
+                                      ? 'tool not in warrant'
+                                      : tc.layers.tenuo?.reason?.includes('bank_account')
+                                        ? 'bank_account mismatch'
+                                        : tc.layers.tenuo?.reason || 'denied'
+                                    }
+                                  </div>
+                                )}
+                              </td>
+                              {visibleLayers.map((layer) => {
+                                const d = tc.layers[layer]
+                                if (!d) return <td key={layer} className="text-center text-gray-800">—</td>
+                                const isAllow = d.decision === 'allow'
+                                const isTenuo = layer === 'tenuo'
+                                return (
+                                  <td key={layer} className="py-1.5 text-center" title={d.reason}>
+                                    <span className={`${
+                                      isAllow
+                                        ? tenuoDeny && !isTenuo
+                                          ? 'text-green-500'
+                                          : isTenuo
+                                            ? 'text-green-400'
+                                            : 'text-green-700'
+                                        : isTenuo
+                                          ? 'text-red-400 font-bold text-base'
+                                          : 'text-red-500'
+                                    }`}>
+                                      {isAllow ? '✓' : '✗'}
+                                    </span>
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
     </div>
   )

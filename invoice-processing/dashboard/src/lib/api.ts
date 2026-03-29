@@ -50,6 +50,11 @@ export async function fetchBankChanges() {
   return res.json()
 }
 
+export async function fetchInvoiceAuthSummary() {
+  const res = await fetch(`${BASE}/api/db/invoice-auth-summary`)
+  return res.json()
+}
+
 export async function fetchAgentLogs(agentId?: string) {
   const params = agentId ? `?agent_id=${agentId}` : ''
   const res = await fetch(`${BASE}/api/db/agent-logs${params}`)
