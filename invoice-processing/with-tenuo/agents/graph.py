@@ -68,7 +68,7 @@ async def process_invoice_node(state: APState) -> dict:
                          invoice_id=invoice_id, amount=invoice.get("amount"))
 
     processor_warrant = root_warrant
-    if root_warrant and os.environ.get("TENUO_MODE", "local") == "local":
+    if root_warrant:
         try:
             from auth.tenuo_local import attenuate_for_invoice_processor
             processor_warrant = await attenuate_for_invoice_processor(
@@ -78,9 +78,6 @@ async def process_invoice_node(state: APState) -> dict:
                 f"Attenuated warrant for invoice-processor (5 tools, NO update_vendor_bank)")
         except Exception as e:
             logger.warning(f"Warrant attenuation failed: {e}")
-    elif root_warrant:
-        await log_status("finance-controller",
-            "Cloud warrant passed to invoice-processor (constraints from trigger)")
 
     events = [
         agent_status_event("finance-controller", "delegating",
@@ -157,7 +154,7 @@ async def execute_payment_node(state: APState) -> dict:
     # The warrant captures the legitimate bank account BEFORE injection poisons it.
     root_warrant = state.get("warrant", "")
     payment_warrant = root_warrant
-    if root_warrant and vendor_id and os.environ.get("TENUO_MODE", "local") == "local":
+    if root_warrant and vendor_id:
         try:
             from auth.tenuo_local import attenuate_for_payment_executor
             payment_warrant = await attenuate_for_payment_executor(

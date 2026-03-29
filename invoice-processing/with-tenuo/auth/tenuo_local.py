@@ -13,6 +13,8 @@ snapshot of what the world looks like BEFORE the injection poisons the DB.
 
 import logging
 
+import os
+
 import tenuo
 from tenuo_core import SigningKey, Warrant, Exact, Wildcard
 from tenuo.keys import KeyRegistry
@@ -36,18 +38,36 @@ def setup_local():
     if _initialized:
         return
 
-    _issuer_key = SigningKey.generate()
+    # Use registered agent key from env if available (cloud mode),
+    # otherwise generate fresh keys (local mode)
+    agent_key_hex = os.environ.get("TENUO_AGENT_KEY")
+    if agent_key_hex:
+        # Cloud mode — use the registered key for the controller
+        controller_key = SigningKey.from_bytes(bytes.fromhex(agent_key_hex))
+        _issuer_key = controller_key  # In cloud mode, cloud is the issuer
+    else:
+        controller_key = SigningKey.generate()
+        _issuer_key = SigningKey.generate()
+
     _keys = {
-        KEY_CONTROLLER: SigningKey.generate(),
+        KEY_CONTROLLER: controller_key,
         KEY_PROCESSOR: SigningKey.generate(),
         KEY_PAYMENT: SigningKey.generate(),
     }
 
-    # Trust both the issuer (signs root warrant) and the controller (signs attenuated warrants)
-    tenuo.configure(trusted_roots=[
-        _issuer_key.public_key,
-        _keys[KEY_CONTROLLER].public_key,
-    ])
+    # Trust roots: local issuer + controller (for attenuated warrants)
+    trusted = [_keys[KEY_CONTROLLER].public_key]
+    if _issuer_key != controller_key:
+        trusted.append(_issuer_key.public_key)
+
+    # In cloud mode, also trust the cloud root key
+    root_key_b64 = os.environ.get("TENUO_ROOT_PUBLIC_KEY")
+    if root_key_b64:
+        import base64
+        from tenuo_core import PublicKey
+        trusted.append(PublicKey.from_bytes(base64.b64decode(root_key_b64)))
+
+    tenuo.configure(trusted_roots=trusted)
 
     registry = KeyRegistry.get_instance()
     for key_id, key in _keys.items():
