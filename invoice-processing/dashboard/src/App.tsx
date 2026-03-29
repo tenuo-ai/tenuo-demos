@@ -96,16 +96,19 @@ export default function App() {
           </div>
         </div>
       ) : (
-        /* During/after processing: show activity + auth/DB state */
+        /* During/after processing: activity + invoice inspector + auth + DB */
         <div className="flex-1 flex overflow-hidden">
           {/* Left column: Activity Log */}
           <div className="w-1/2 border-r border-gray-800 flex flex-col">
             <ToolCallLog events={events} />
           </div>
 
-          {/* Right column: Auth + DB state */}
+          {/* Right column: Invoice Inspector + Auth + DB state */}
           <div className="w-1/2 overflow-y-auto">
-            <AuthDecisionPanel />
+            <InvoiceInspector attackEnabled={state.attack_mode !== null} />
+            <div className="border-t border-gray-800">
+              <AuthDecisionPanel />
+            </div>
             <div className="border-t border-gray-800">
               <DatabaseState />
             </div>

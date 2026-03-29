@@ -95,13 +95,15 @@ export function AuthDecisionPanel() {
         {summaries.filter((s) => s.tool_calls.length > 0).map((summary) => {
           const inv = summary.invoice
           const isExpanded = expanded === inv.id
+          // Only mark as attack if update_vendor_bank was called for THIS invoice
           const hasAttack = summary.tool_calls.some(
-            (tc) => tc.tool_name === 'update_vendor_bank'
+            (tc) => tc.tool_name === 'update_vendor_bank' && tc.invoice_id === inv.id
           )
           const hasTenuoDeny = summary.tool_calls.some(
-            (tc) => tc.layers.tenuo?.decision === 'deny'
+            (tc) => tc.layers.tenuo?.decision === 'deny' && tc.invoice_id === inv.id
           )
-          const bankPoisoned = inv.bank_account === ATTACKER_ACCOUNT
+          // Only show bank poisoned if this invoice's vendor was the target
+          const bankPoisoned = inv.bank_account === ATTACKER_ACCOUNT && inv.vendor_id === 'V-4521'
 
           return (
             <div
