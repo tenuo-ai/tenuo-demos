@@ -50,17 +50,30 @@ async def process_invoice_node(state: APState) -> dict:
     if not invoice_id:
         return {"messages": [], "events": []}
 
-    auth_stack = state.get("auth_stack", "standard")
-
     # Fetch invoice from vendor portal (injection payloads served here)
     invoice = await _fetch_invoice_from_portal(invoice_id)
+    vendor_id = invoice.get("vendor_id", "")
 
-    # Log delegation
+    # DELEGATION: Attenuate the root warrant for the Invoice Processor (Level 2)
+    # This creates a narrower warrant: no update_vendor_bank, scoped to this invoice
+    root_warrant = state.get("warrant", "")
     delegate_tools = ["read_invoice", "read_po", "lookup_vendor",
-                      "verify_vendor", "update_vendor_bank", "approve_invoice"]
+                      "verify_vendor", "approve_invoice"]
     await log_status("finance-controller", f"Processing invoice {invoice_id}")
     await log_delegation("finance-controller", "invoice-processor", delegate_tools,
                          invoice_id=invoice_id, amount=invoice.get("amount"))
+
+    processor_warrant = root_warrant
+    if root_warrant:
+        try:
+            from auth.tenuo_local import attenuate_for_invoice_processor
+            processor_warrant = await attenuate_for_invoice_processor(
+                root_warrant, invoice_id, vendor_id,
+            )
+            await log_status("finance-controller",
+                f"Attenuated warrant for invoice-processor (5 tools, NO update_vendor_bank)")
+        except Exception as e:
+            logger.warning(f"Warrant attenuation failed: {e}")
 
     events = [
         agent_status_event("finance-controller", "delegating",
@@ -69,7 +82,6 @@ async def process_invoice_node(state: APState) -> dict:
                          tools=delegate_tools, ttl_minutes=10),
     ]
 
-    # Build subgraph with the current auth_stack setting
     processor = build_invoice_processor_graph().compile()
 
     # Build the initial message with invoice data (this is where injection arrives)
@@ -87,7 +99,7 @@ async def process_invoice_node(state: APState) -> dict:
 
     sub_state: InvoiceProcessorState = {
         "messages": [HumanMessage(content=task_message)],
-        "warrant": state.get("warrant", ""),
+        "warrant": processor_warrant,
         "invoice_id": invoice_id,
         "vendor_id": invoice.get("vendor_id"),
         "po_id": invoice.get("po_id"),
@@ -127,20 +139,35 @@ async def execute_payment_node(state: APState) -> dict:
     if not invoice_id:
         return {"messages": [], "events": []}
 
-    auth_stack = state.get("auth_stack", "standard")
     result_data = state.get("processing_results", {}).get(invoice_id, {})
+    vendor_id = result_data.get("vendor_id", "")
+    amount = result_data.get("amount", 0)
+    currency = result_data.get("currency", "USD")
 
+    # DELEGATION: Attenuate root warrant for Payment Executor (Level 2)
+    # This reads the vendor's CURRENT bank details from the DB and pins them.
+    # The warrant captures the legitimate bank account BEFORE injection poisons it.
+    root_warrant = state.get("warrant", "")
+    payment_warrant = root_warrant
+    if root_warrant and vendor_id:
+        try:
+            from auth.tenuo_local import attenuate_for_payment_executor
+            payment_warrant = await attenuate_for_payment_executor(
+                root_warrant, invoice_id, vendor_id,
+            )
+            await log_status("finance-controller",
+                f"Attenuated warrant for payment-executor (bank_account pinned from vendor master)")
+        except Exception as e:
+            logger.warning(f"Payment warrant attenuation failed: {e}")
+
+    delegate_tools = ["lookup_vendor", "initiate_payment", "approve_payment", "get_fx_rate"]
     events = [
         delegation_event("finance-controller", "payment-executor",
-                         tools=["initiate_payment", "approve_payment", "get_fx_rate"],
-                         ttl_minutes=5),
+                         tools=delegate_tools, ttl_minutes=5),
     ]
 
     executor = build_payment_executor_graph().compile()
 
-    vendor_id = result_data.get("vendor_id", "")
-    amount = result_data.get("amount", 0)
-    currency = result_data.get("currency", "USD")
     task_msg = (
         f"Execute payment for invoice {invoice_id}.\n"
         f"Vendor: {vendor_id}, Amount: ${amount} {currency}.\n"
@@ -149,7 +176,7 @@ async def execute_payment_node(state: APState) -> dict:
     )
     sub_state: PaymentExecutorState = {
         "messages": [HumanMessage(content=task_msg)],
-        "warrant": state.get("warrant", ""),
+        "warrant": payment_warrant,
         "invoice_id": invoice_id,
         "vendor_id": result_data.get("vendor_id", ""),
         "amount": result_data.get("amount", 0),
@@ -248,11 +275,12 @@ async def run_demo(
         from attacks.mode3_simulated_compromise import simulate_attack
         return await simulate_attack()
 
-    # In local mode, issue the warrant locally instead of relying on Cloud
-    if auth_stack == "tenuo" and os.environ.get("TENUO_MODE", "local") == "local":
-        from auth.tenuo_local import issue_local_warrant
-        warrant_b64 = issue_local_warrant()
-        await log_status("system", "Tenuo local mode: warrant issued via Warrant.issue()")
+    # Issue root warrant (Level 1) — all tools, unconstrained.
+    # Delegation to specialists will attenuate per-invoice with live DB data.
+    if os.environ.get("TENUO_MODE", "local") == "local":
+        from auth.tenuo_local import issue_root_warrant
+        warrant_b64 = issue_root_warrant()
+        await log_status("system", "Issued Level 1 root warrant (12 tools, unconstrained)")
 
     initial_state: APState = {
         "messages": [HumanMessage(content="Process pending invoice batch.")],

@@ -85,13 +85,8 @@ def should_continue(state: InvoiceProcessorState) -> str:
 def build_invoice_processor_graph() -> StateGraph:
     """Build the Level 2 Invoice Processor subgraph with Tenuo protection."""
     from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
-    tenuo_mode = os.environ.get("TENUO_MODE", "local")
-    if tenuo_mode == "cloud":
-        from auth.tenuo_integration import build_tenuo_tool_node
-        inner = build_tenuo_tool_node(INVOICE_PROCESSOR_TOOLS)
-    else:
-        from auth.tenuo_local import build_tenuo_tool_node_local
-        inner = build_tenuo_tool_node_local(INVOICE_PROCESSOR_TOOLS)
+    from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PROCESSOR
+    inner = build_tenuo_tool_node_local(INVOICE_PROCESSOR_TOOLS, key_id=KEY_PROCESSOR)
     tool_node = TenuoAuthenticatedToolNode(inner, agent_id="invoice-processor")
 
     graph = StateGraph(InvoiceProcessorState)
