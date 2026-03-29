@@ -32,10 +32,10 @@ _issuer_key: SigningKey | None = None
 _keys: dict[str, SigningKey] = {}
 
 
-def setup_local():
+def setup_local(force: bool = False):
     """Initialize keys for all agents. Call once at startup."""
     global _initialized, _issuer_key, _keys
-    if _initialized:
+    if _initialized and not force:
         return
 
     # Use registered agent key from env if available (cloud mode),
