@@ -43,7 +43,11 @@ def setup_local():
         KEY_PAYMENT: SigningKey.generate(),
     }
 
-    tenuo.configure(trusted_roots=[_issuer_key.public_key])
+    # Trust both the issuer (signs root warrant) and the controller (signs attenuated warrants)
+    tenuo.configure(trusted_roots=[
+        _issuer_key.public_key,
+        _keys[KEY_CONTROLLER].public_key,
+    ])
 
     registry = KeyRegistry.get_instance()
     for key_id, key in _keys.items():
@@ -97,9 +101,7 @@ async def attenuate_for_invoice_processor(
     root = Warrant.from_base64(root_warrant_b64)
 
     child = root.attenuate(
-        signing_key=_keys[KEY_CONTROLLER],
-        holder=_keys[KEY_PROCESSOR].public_key,
-        capabilities={
+        {
             "read_invoice": {},
             "read_po": {},
             "lookup_vendor": {},
@@ -107,6 +109,8 @@ async def attenuate_for_invoice_processor(
             "approve_invoice": {},
             # NO update_vendor_bank — that's the key protection
         },
+        signing_key=_keys[KEY_CONTROLLER],
+        holder=_keys[KEY_PROCESSOR].public_key,
         ttl_seconds=600,
     )
     logger.info(f"Attenuated Level 2 warrant for invoice-processor ({invoice_id}, 5 tools, NO update_vendor_bank)")
@@ -146,9 +150,7 @@ async def attenuate_for_payment_executor(
     )
 
     child = root.attenuate(
-        signing_key=_keys[KEY_CONTROLLER],
-        holder=_keys[KEY_PAYMENT].public_key,
-        capabilities={
+        {
             "lookup_vendor": {},
             "initiate_payment": {
                 "bank_account": Exact(bank_account),
@@ -160,6 +162,8 @@ async def attenuate_for_payment_executor(
             "approve_payment": {},
             "get_fx_rate": {},
         },
+        signing_key=_keys[KEY_CONTROLLER],
+        holder=_keys[KEY_PAYMENT].public_key,
         ttl_seconds=300,
     )
     logger.info(
