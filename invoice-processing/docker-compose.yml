@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: tenuo_demo
+      POSTGRES_USER: demo
+      POSTGRES_PASSWORD: demo
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U demo -d tenuo_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  spicedb:
+    image: authzed/spicedb:latest
+    command: serve --grpc-preshared-key "demo-preshared-key" --datastore-engine memory
+    ports:
+      - "50051:50051"  # gRPC
+      - "8443:8443"    # HTTP gateway
+    healthcheck:
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:50051"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  opa:
+    image: openpolicyagent/opa:latest
+    command: run --server --addr :8181 /policies
+    ports:
+      - "8181:8181"
+    volumes:
+      - ./opa:/policies
+
+  # Tenuo authorizer sidecar — connects to Tenuo Cloud for receipts + SRL
+  # When running locally without Docker: ./tenuo-authorizer serve --port 9090
+  tenuo-authorizer:
+    image: ghcr.io/tenuo-ai/authorizer:latest
+    ports:
+      - "9090:9090"
+    environment:
+      TENUO_CONTROL_PLANE_ENABLED: "true"
+      TENUO_CONTROL_PLANE_URL: "${TENUO_CONTROL_PLANE_URL:-https://cloud.tenuo.ai}"
+      TENUO_API_KEY: "${TENUO_API_KEY}"
+      TENUO_AUTHORIZER_NAME: "demo-ap-authorizer"
+
+  vendor-portal:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.portal
+    ports:
+      - "8082:8082"
+    environment:
+      DATABASE_URL: postgresql://demo:demo@postgres:5432/tenuo_demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:

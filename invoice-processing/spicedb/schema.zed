@@ -1,0 +1,59 @@
+/**
+ * SpiceDB schema for the AP automation demo.
+ *
+ * This is a properly-configured Zanzibar-style authorization model.
+ * It defines object-level relationships between agents and resources.
+ *
+ * WHY IT FAILS: SpiceDB authorizes relationships on objects — "this agent
+ * IS an editor of this vendor." It can't distinguish what the agent does
+ * within that relationship. Updating verification status and updating bank
+ * details are both "editor" operations on the vendor object.
+ */
+
+definition user {}
+
+definition agent {
+    relation member: user
+}
+
+definition invoice {
+    relation organization: organization
+    relation processor: agent
+    relation reviewer: agent
+
+    permission read = processor + reviewer + organization->admin
+    permission write = processor + organization->admin
+    permission approve = processor + organization->admin
+}
+
+definition vendor {
+    relation organization: organization
+    relation viewer: agent
+    relation editor: agent        // The critical relationship: needed for verification AND bank updates
+
+    permission read = viewer + editor + organization->admin
+    permission write = editor + organization->admin
+    permission verify = editor + organization->admin
+    permission update_bank = editor + organization->admin   // Same as verify — that's the problem
+}
+
+definition purchase_order {
+    relation organization: organization
+    relation viewer: agent
+
+    permission read = viewer + organization->admin
+}
+
+definition payment {
+    relation organization: organization
+    relation executor: agent
+
+    permission read = executor + organization->admin
+    permission execute = executor + organization->admin
+    permission approve = executor + organization->admin
+}
+
+definition organization {
+    relation admin: agent
+    relation member: agent
+}

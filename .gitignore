@@ -1,0 +1,18 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+node_modules/
+dashboard/dist/
+.ruff_cache/
+
+# Runtime symlinks and merged directory (created by switch-mode.sh)
+invoice-processing/agents
+invoice-processing/auth
+invoice-processing/tools
+invoice-processing/_merged
+internal/
