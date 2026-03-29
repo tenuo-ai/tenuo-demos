@@ -51,6 +51,7 @@ def _init_local_relationships():
         ("vendor", "V-4522"): ["invoice-processor"],
         ("vendor", "V-4523"): ["invoice-processor"],
         ("vendor", "V-4524"): ["invoice-processor"],
+        ("vendor", "V-4526"): ["invoice-processor"],
     }
 
     for (obj_type, obj_id), agents in agents_with_editor.items():
