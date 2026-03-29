@@ -82,7 +82,8 @@ async def process_invoice_node(state: APState) -> dict:
                          tools=delegate_tools, ttl_minutes=10),
     ]
 
-    processor = build_invoice_processor_graph().compile()
+    use_tenuo = bool(state.get("warrant", ""))
+    processor = build_invoice_processor_graph(use_tenuo=use_tenuo).compile()
 
     # Build the initial message with invoice data (this is where injection arrives)
     # The invoice data is pre-fetched from the vendor portal so the agent
@@ -166,7 +167,8 @@ async def execute_payment_node(state: APState) -> dict:
                          tools=delegate_tools, ttl_minutes=5),
     ]
 
-    executor = build_payment_executor_graph().compile()
+    use_tenuo = bool(state.get("warrant", ""))
+    executor = build_payment_executor_graph(use_tenuo=use_tenuo).compile()
 
     task_msg = (
         f"Execute payment for invoice {invoice_id}.\n"

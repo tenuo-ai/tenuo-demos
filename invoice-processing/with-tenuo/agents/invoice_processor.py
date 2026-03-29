@@ -15,6 +15,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
+from auth.tool_node import AuthenticatedToolNode
 from agents.events import agent_status_event
 from agents.llm import get_llm
 from agents.logger import log_thinking, log_status
@@ -82,12 +83,15 @@ def should_continue(state: InvoiceProcessorState) -> str:
     return END
 
 
-def build_invoice_processor_graph() -> StateGraph:
-    """Build the Level 2 Invoice Processor subgraph with Tenuo protection."""
-    from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
-    from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PROCESSOR
-    inner = build_tenuo_tool_node_local(INVOICE_PROCESSOR_TOOLS, key_id=KEY_PROCESSOR)
-    tool_node = TenuoAuthenticatedToolNode(inner, agent_id="invoice-processor")
+def build_invoice_processor_graph(use_tenuo: bool = False) -> StateGraph:
+    """Build the Level 2 Invoice Processor subgraph."""
+    if use_tenuo:
+        from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
+        from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PROCESSOR
+        inner = build_tenuo_tool_node_local(INVOICE_PROCESSOR_TOOLS, key_id=KEY_PROCESSOR)
+        tool_node = TenuoAuthenticatedToolNode(inner, agent_id="invoice-processor")
+    else:
+        tool_node = AuthenticatedToolNode(INVOICE_PROCESSOR_TOOLS, agent_id="invoice-processor")
 
     graph = StateGraph(InvoiceProcessorState)
     graph.add_node("agent", invoice_processor_agent)

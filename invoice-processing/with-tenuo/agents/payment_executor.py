@@ -11,6 +11,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
+from auth.tool_node import AuthenticatedToolNode
 from agents.events import agent_status_event
 from agents.llm import get_llm
 from agents.logger import log_thinking, log_status
@@ -55,12 +56,15 @@ def should_continue(state: PaymentExecutorState) -> str:
     return END
 
 
-def build_payment_executor_graph() -> StateGraph:
-    """Build the Level 2 Payment Executor subgraph with Tenuo protection."""
-    from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
-    from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PAYMENT
-    inner = build_tenuo_tool_node_local(PAYMENT_EXECUTOR_TOOLS, key_id=KEY_PAYMENT)
-    tool_node = TenuoAuthenticatedToolNode(inner, agent_id="payment-executor")
+def build_payment_executor_graph(use_tenuo: bool = False) -> StateGraph:
+    """Build the Level 2 Payment Executor subgraph."""
+    if use_tenuo:
+        from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
+        from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PAYMENT
+        inner = build_tenuo_tool_node_local(PAYMENT_EXECUTOR_TOOLS, key_id=KEY_PAYMENT)
+        tool_node = TenuoAuthenticatedToolNode(inner, agent_id="payment-executor")
+    else:
+        tool_node = AuthenticatedToolNode(PAYMENT_EXECUTOR_TOOLS, agent_id="payment-executor")
 
     graph = StateGraph(PaymentExecutorState)
     graph.add_node("agent", payment_executor_agent)
