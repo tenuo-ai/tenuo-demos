@@ -87,8 +87,12 @@ def build_invoice_processor_graph(use_tenuo: bool = False) -> StateGraph:
     """Build the Level 2 Invoice Processor subgraph."""
     if use_tenuo:
         from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
-        from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PROCESSOR
-        inner = build_tenuo_tool_node_local(INVOICE_PROCESSOR_TOOLS, key_id=KEY_PROCESSOR)
+        if os.environ.get("TENUO_MODE", "local") == "cloud":
+            from auth.tenuo_integration import build_tenuo_tool_node
+            inner = build_tenuo_tool_node(INVOICE_PROCESSOR_TOOLS)
+        else:
+            from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PROCESSOR
+            inner = build_tenuo_tool_node_local(INVOICE_PROCESSOR_TOOLS, key_id=KEY_PROCESSOR)
         tool_node = TenuoAuthenticatedToolNode(inner, agent_id="invoice-processor")
     else:
         tool_node = AuthenticatedToolNode(INVOICE_PROCESSOR_TOOLS, agent_id="invoice-processor")

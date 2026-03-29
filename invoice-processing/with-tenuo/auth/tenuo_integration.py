@@ -50,15 +50,17 @@ def setup_tenuo():
     KeyRegistry.get_instance().register(_KEY_ID, key)
     logger.info("Tenuo Cloud mode initialized")
 
-    # Optional: connect the SDK directly to Tenuo Cloud for receipt streaming.
-    # In production, the authorizer sidecar handles this. Uncomment below if
-    # you want the SDK to stream receipts without deploying a sidecar.
-    #
-    # api_key = os.environ.get("TENUO_API_KEY")
-    # control_url = os.environ.get("TENUO_CONTROL_PLANE_URL")
-    # if api_key and control_url:
-    #     from tenuo.control_plane import connect
-    #     connect(url=control_url + "/api", api_key=api_key, authorizer_name="my-app")
+    # Stream receipts to Tenuo Cloud via the SDK.
+    # The authorizer sidecar also streams its own events (heartbeat, SRL sync).
+    api_key = os.environ.get("TENUO_API_KEY")
+    control_url = os.environ.get("TENUO_CONTROL_PLANE_URL")
+    if api_key and control_url:
+        try:
+            from tenuo.control_plane import connect
+            connect(url=control_url + "/api", api_key=api_key, authorizer_name="demo-ap-sdk")
+            logger.info("SDK connected to Tenuo Cloud for receipt streaming")
+        except Exception as e:
+            logger.warning(f"SDK cloud connection failed (non-fatal): {e}")
 
     _initialized = True
 

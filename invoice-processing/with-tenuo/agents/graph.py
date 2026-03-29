@@ -67,8 +67,9 @@ async def process_invoice_node(state: APState) -> dict:
     await log_delegation("finance-controller", "invoice-processor", delegate_tools,
                          invoice_id=invoice_id, amount=invoice.get("amount"))
 
+    # Attenuate warrant per-invoice (local mode only — cloud warrants are already constrained)
     processor_warrant = root_warrant
-    if root_warrant:
+    if root_warrant and os.environ.get("TENUO_MODE", "local") == "local":
         try:
             from auth.tenuo_local import attenuate_for_invoice_processor
             processor_warrant = await attenuate_for_invoice_processor(
@@ -154,7 +155,7 @@ async def execute_payment_node(state: APState) -> dict:
     # The warrant captures the legitimate bank account BEFORE injection poisons it.
     root_warrant = state.get("warrant", "")
     payment_warrant = root_warrant
-    if root_warrant and vendor_id:
+    if root_warrant and vendor_id and os.environ.get("TENUO_MODE", "local") == "local":
         try:
             from auth.tenuo_local import attenuate_for_payment_executor
             payment_warrant = await attenuate_for_payment_executor(

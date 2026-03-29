@@ -60,8 +60,12 @@ def build_payment_executor_graph(use_tenuo: bool = False) -> StateGraph:
     """Build the Level 2 Payment Executor subgraph."""
     if use_tenuo:
         from auth.tenuo_tool_node import TenuoAuthenticatedToolNode
-        from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PAYMENT
-        inner = build_tenuo_tool_node_local(PAYMENT_EXECUTOR_TOOLS, key_id=KEY_PAYMENT)
+        if os.environ.get("TENUO_MODE", "local") == "cloud":
+            from auth.tenuo_integration import build_tenuo_tool_node
+            inner = build_tenuo_tool_node(PAYMENT_EXECUTOR_TOOLS)
+        else:
+            from auth.tenuo_local import build_tenuo_tool_node_local, KEY_PAYMENT
+            inner = build_tenuo_tool_node_local(PAYMENT_EXECUTOR_TOOLS, key_id=KEY_PAYMENT)
         tool_node = TenuoAuthenticatedToolNode(inner, agent_id="payment-executor")
     else:
         tool_node = AuthenticatedToolNode(PAYMENT_EXECUTOR_TOOLS, agent_id="payment-executor")
