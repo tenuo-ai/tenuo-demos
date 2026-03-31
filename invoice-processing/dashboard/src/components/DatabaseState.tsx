@@ -78,6 +78,13 @@ export function DatabaseState() {
         </table>
       </div>
 
+      {/* Clean-state confirmation — only after a run with no bank changes */}
+      {payments.length > 0 && bankChanges.length === 0 && (
+        <div className="text-[10px] text-green-700 mt-1">
+          No unauthorized bank changes detected
+        </div>
+      )}
+
       {/* Bank Change Audit */}
       {bankChanges.length > 0 && (
         <div>

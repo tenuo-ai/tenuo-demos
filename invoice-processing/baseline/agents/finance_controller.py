@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agents.events import agent_status_event, delegation_event
 from agents.llm import get_llm
+from agents.logger import log_status
 from agents.prompts import FINANCE_CONTROLLER_PROMPT
 from agents.state import APState
 from tools.invoice_tools import list_invoices
@@ -23,6 +24,7 @@ async def finance_controller_node(state: APState) -> dict:
     The graph router then fans out to the appropriate Level 2 specialist.
     """
     events = [agent_status_event("finance-controller", "started")]
+    await log_status("finance-controller", "Finance Controller started")
 
     # If we already have a batch, process it
     invoice_batch = state.get("invoice_batch", [])
@@ -31,6 +33,7 @@ async def finance_controller_node(state: APState) -> dict:
         result = await list_invoices.ainvoke({"status": "pending"})
         invoices = json.loads(result)
         invoice_batch = [inv["id"] for inv in invoices]
+        await log_status("finance-controller", f"Loaded batch of {len(invoice_batch)} invoices: {', '.join(invoice_batch)}")
         events.append(agent_status_event("finance-controller", "loaded_batch", count=len(invoice_batch)))
 
     # Create a processing plan
@@ -38,6 +41,7 @@ async def finance_controller_node(state: APState) -> dict:
     pending = [inv_id for inv_id in invoice_batch if inv_id not in processing_results]
 
     if not pending:
+        await log_status("finance-controller", f"All {len(invoice_batch)} invoices processed.")
         events.append(agent_status_event("finance-controller", "completed"))
         return {
             "messages": [AIMessage(content=f"All {len(invoice_batch)} invoices processed.")],
@@ -48,6 +52,8 @@ async def finance_controller_node(state: APState) -> dict:
 
     # Take the next invoice to process
     next_invoice = pending[0]
+    await log_status("finance-controller",
+                     f"Dispatching {next_invoice} to Invoice Processor ({len(pending)} remaining in batch)")
     events.append(
         agent_status_event("finance-controller", "dispatching", invoice_id=next_invoice)
     )

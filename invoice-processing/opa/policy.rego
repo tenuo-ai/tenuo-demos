@@ -13,12 +13,28 @@ import rego.v1
 # - Vendor verification requirements
 # - Multi-attribute validation
 #
-# WHY IT FAILS: OPA evaluates each request independently (stateless).
-# An injection sequences two operations:
-#   1. update_vendor_bank (passes: agent has vendor.editor role)
-#   2. initiate_payment (passes: vendor is "verified", amount < threshold)
-# Each step passes policy individually. OPA can't detect that step 1
-# was malicious setup for step 2.
+# WHY IT STILL FAILS — two structural gaps, not configuration gaps:
+#
+# 1. NO DELEGATION TRACKING
+#    OPA has no concept of a capability chain. It cannot express "payment-
+#    executor's authority to call initiate_payment must derive from a
+#    warrant issued by the human who started this run." Each call is
+#    evaluated in isolation against static role assignments. An agent
+#    that was delegated narrower authority looks identical to one that
+#    was given full authority from the start.
+#
+# 2. NO CRYPTOGRAPHIC AUDITABILITY
+#    OPA logs decisions, but those logs are mutable — a compromised
+#    system can alter them after the fact. There is no tamper-evident
+#    record that proves to an external auditor exactly what was
+#    authorized, by whom, and under what constraints. Tenuo warrants
+#    are cryptographically signed receipts: the authorization proof
+#    exists independently of any log.
+#
+# NOTE: OPA remains the right tool for coarse-grained access control
+# (does this agent have the right role for this tool?). These gaps are
+# specific to multi-agent delegation and cryptographic auditability —
+# problems OPA was not designed to solve.
 # ═══════════════════════════════════════════════════════════════
 
 default allow := false

@@ -1,24 +1,13 @@
 import type { DemoState } from '../lib/types'
 import { setAct, setAttackMode, setTenuoMode, startDemo, resetDemo } from '../lib/api'
 
-const ACT_COLORS: Record<number, string> = {
-  1: 'bg-blue-600 text-white',
-  2: 'bg-red-600 text-white',
-  3: 'bg-green-600 text-white',
-}
-
-const ACT_LABELS: Record<number, string> = {
-  1: '1: The App',
-  2: '2: The Attack',
-  3: '3: Tenuo',
-}
-
 interface Props {
   state: DemoState
   onStateChange: (state: DemoState) => void
+  onReset: (state: DemoState) => void
 }
 
-export function DemoControls({ state, onStateChange }: Props) {
+export function DemoControls({ state, onStateChange, onReset }: Props) {
   const handleAct = async (act: number) => {
     const s = await setAct(act)
     onStateChange(s)
@@ -36,7 +25,7 @@ export function DemoControls({ state, onStateChange }: Props) {
 
   const handleReset = async () => {
     const s = await resetDemo()
-    onStateChange(s)
+    onReset(s)
   }
 
   return (
@@ -50,11 +39,15 @@ export function DemoControls({ state, onStateChange }: Props) {
             onClick={() => handleAct(act)}
             className={`px-3 py-1 text-sm rounded transition-colors ${
               state.act === act
-                ? ACT_COLORS[act]
+                ? act === 1
+                  ? 'bg-blue-600 text-white'
+                  : act === 2
+                    ? 'bg-red-600 text-white'
+                    : 'bg-green-600 text-white'
                 : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
-            {ACT_LABELS[act]}
+            {act === 1 ? '1: The App' : act === 2 ? '2: The Attack' : '3: Tenuo'}
           </button>
         ))}
       </div>
@@ -67,6 +60,11 @@ export function DemoControls({ state, onStateChange }: Props) {
             <button
               key={mode}
               onClick={() => handleAttack(mode)}
+              title={
+                mode === 'simulate'
+                  ? 'Directly calls update_vendor_bank without LLM involvement — tests the auth layer in isolation'
+                  : undefined
+              }
               className={`px-3 py-1 text-sm rounded transition-colors ${
                 (state.attack_mode ?? 'off') === mode
                   ? mode === 'off'
@@ -106,6 +104,11 @@ export function DemoControls({ state, onStateChange }: Props) {
                 const s = await setTenuoMode(mode)
                 onStateChange(s)
               }}
+              title={
+                mode === 'cloud'
+                  ? 'Requires Tenuo Cloud credentials — see README for setup'
+                  : undefined
+              }
               className={`px-3 py-1 text-sm rounded transition-colors ${
                 state.tenuo_mode === mode
                   ? mode === 'cloud'
@@ -114,7 +117,7 @@ export function DemoControls({ state, onStateChange }: Props) {
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              {mode === 'local' ? 'Local SDK' : 'Tenuo Cloud'}
+              {mode === 'local' ? 'Local SDK' : 'Tenuo Cloud ↗'}
             </button>
           ))}
         </div>
@@ -123,7 +126,7 @@ export function DemoControls({ state, onStateChange }: Props) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Action buttons — Process Batch only in Acts 2 & 3 */}
+      {/* Action buttons — hidden in Act 1 (overview only) */}
       {state.act !== 1 && (
         <button
           onClick={handleStart}

@@ -14,14 +14,14 @@ import logging
 import os
 
 import httpx
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
+
+logger = logging.getLogger(__name__)
 
 from agents.events import agent_status_event, delegation_event
 from agents.finance_controller import finance_controller_node
 from agents.logger import log_delegation, log_status, new_run
-
-logger = logging.getLogger(__name__)
 from agents.invoice_processor import build_invoice_processor_graph
 from agents.payment_executor import build_payment_executor_graph
 from agents.state import APState, InvoiceProcessorState, PaymentExecutorState
@@ -30,14 +30,23 @@ from server.events import publish
 VENDOR_PORTAL_URL = os.getenv("VENDOR_PORTAL_URL", "http://localhost:8082")
 
 
-async def _fetch_invoice_from_portal(invoice_id: str) -> dict:
-    """Fetch invoice from vendor portal (where injection payloads live)."""
+async def _fetch_invoice_from_portal(invoice_id: str, attack_mode: str | None = None) -> dict:
+    """Fetch invoice from vendor portal (where injection payloads live).
+
+    Raises RuntimeError if the portal is unreachable in injection mode so the
+    demo fails loudly rather than silently returning the clean DB invoice.
+    """
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(f"{VENDOR_PORTAL_URL}/api/invoices/{invoice_id}")
             return resp.json()
         except httpx.ConnectError:
-            # Fallback to DB if portal is down
+            if attack_mode == "injection":
+                raise RuntimeError(
+                    "Vendor portal is unreachable — injection payloads cannot be served. "
+                    "Start it with: uvicorn vendor_portal.server:app --port 8082"
+                )
+            # Act 1 (no attack): falling back to DB is fine
             from tools.invoice_tools import read_invoice
             data = await read_invoice.ainvoke({"invoice_id": invoice_id})
             return json.loads(data)
@@ -54,11 +63,11 @@ async def process_invoice_node(state: APState) -> dict:
         return {"messages": [], "events": []}
 
     # Fetch invoice from vendor portal (injection payloads served here)
-    invoice = await _fetch_invoice_from_portal(invoice_id)
+    invoice = await _fetch_invoice_from_portal(invoice_id, attack_mode=state.get("attack_mode"))
     vendor_id = invoice.get("vendor_id", "")
 
     # DELEGATION: Attenuate the root warrant for the Invoice Processor (Level 2)
-    # This creates a narrower warrant: no update_vendor_bank, scoped to this invoice
+    # Removes update_vendor_bank so a prompt-injected agent cannot redirect payments.
     root_warrant = state.get("warrant", "")
     delegate_tools = ["read_invoice", "read_po", "lookup_vendor",
                       "verify_vendor", "approve_invoice"]
@@ -66,18 +75,28 @@ async def process_invoice_node(state: APState) -> dict:
     await log_delegation("finance-controller", "invoice-processor", delegate_tools,
                          invoice_id=invoice_id, amount=invoice.get("amount"))
 
-    # Attenuate warrant per-invoice (local mode only — cloud warrants are already constrained)
     processor_warrant = root_warrant
-    if root_warrant and os.environ.get("TENUO_MODE", "local") == "local":
+    if root_warrant:
         try:
-            from auth.tenuo_local import attenuate_for_invoice_processor
-            processor_warrant = await attenuate_for_invoice_processor(
-                root_warrant, invoice_id, vendor_id,
-            )
+            if os.environ.get("TENUO_MODE", "local") == "cloud":
+                from auth.tenuo_integration import attenuate_for_invoice_processor_cloud
+                processor_warrant = await attenuate_for_invoice_processor_cloud(root_warrant)
+            else:
+                from auth.tenuo_local import attenuate_for_invoice_processor
+                processor_warrant = await attenuate_for_invoice_processor(
+                    root_warrant, invoice_id, vendor_id,
+                )
             await log_status("finance-controller",
                 f"Attenuated warrant for invoice-processor (5 tools, NO update_vendor_bank)")
         except Exception as e:
-            logger.warning(f"Warrant attenuation failed: {e}")
+            # Fail closed: do NOT fall back to the root warrant which includes
+            # update_vendor_bank. A degraded warrant is worse than no run.
+            logger.error(f"Warrant attenuation for invoice-processor failed: {e}", exc_info=True)
+            await log_status("finance-controller",
+                f"ERROR: warrant attenuation failed — aborting invoice {invoice_id}")
+            raise RuntimeError(
+                f"Warrant attenuation failed for invoice-processor ({invoice_id}): {e}"
+            ) from e
 
     events = [
         agent_status_event("finance-controller", "delegating",
@@ -85,6 +104,8 @@ async def process_invoice_node(state: APState) -> dict:
         delegation_event("finance-controller", "invoice-processor",
                          tools=delegate_tools, ttl_minutes=10),
     ]
+    for e in events:
+        await publish(e)
 
     use_tenuo = bool(state.get("warrant", ""))
     processor = build_invoice_processor_graph(use_tenuo=use_tenuo).compile()
@@ -117,10 +138,8 @@ async def process_invoice_node(state: APState) -> dict:
 
     result = await processor.ainvoke(sub_state)
 
-    # Collect events and publish them
+    # sub_events were already published live by AuthenticatedToolNode / TenuoAuthenticatedToolNode
     sub_events = result.get("events", [])
-    for e in sub_events:
-        await publish(e)
 
     # Record result
     processing_results = dict(state.get("processing_results", {}))
@@ -150,26 +169,43 @@ async def execute_payment_node(state: APState) -> dict:
     currency = result_data.get("currency", "USD")
 
     # DELEGATION: Attenuate root warrant for Payment Executor (Level 2)
-    # This reads the vendor's CURRENT bank details from the DB and pins them.
+    # Pins bank_account and bank_routing from the LIVE vendor master.
     # The warrant captures the legitimate bank account BEFORE injection poisons it.
     root_warrant = state.get("warrant", "")
     payment_warrant = root_warrant
-    if root_warrant and vendor_id and os.environ.get("TENUO_MODE", "local") == "local":
+    if root_warrant and vendor_id:
         try:
-            from auth.tenuo_local import attenuate_for_payment_executor
-            payment_warrant = await attenuate_for_payment_executor(
-                root_warrant, invoice_id, vendor_id,
-            )
+            if os.environ.get("TENUO_MODE", "local") == "cloud":
+                from auth.tenuo_integration import attenuate_for_payment_executor_cloud
+                payment_warrant = await attenuate_for_payment_executor_cloud(
+                    root_warrant, vendor_id,
+                )
+            else:
+                from auth.tenuo_local import attenuate_for_payment_executor
+                payment_warrant = await attenuate_for_payment_executor(
+                    root_warrant, invoice_id, vendor_id,
+                )
             await log_status("finance-controller",
                 f"Attenuated warrant for payment-executor (bank_account pinned from vendor master)")
         except Exception as e:
-            logger.warning(f"Payment warrant attenuation failed: {e}")
+            # Fail closed: a root warrant is not bank-pinned and would allow
+            # payment to the attacker's account. Abort.
+            logger.error(f"Warrant attenuation for payment-executor failed: {e}", exc_info=True)
+            await log_status("finance-controller",
+                f"ERROR: payment warrant attenuation failed — aborting payment for {invoice_id}")
+            raise RuntimeError(
+                f"Warrant attenuation failed for payment-executor ({invoice_id}): {e}"
+            ) from e
 
     delegate_tools = ["lookup_vendor", "initiate_payment", "approve_payment", "get_fx_rate"]
+    await log_delegation("finance-controller", "payment-executor", delegate_tools,
+                         invoice_id=invoice_id)
     events = [
         delegation_event("finance-controller", "payment-executor",
                          tools=delegate_tools, ttl_minutes=5),
     ]
+    for e in events:
+        await publish(e)
 
     use_tenuo = bool(state.get("warrant", ""))
     executor = build_payment_executor_graph(use_tenuo=use_tenuo).compile()
@@ -192,9 +228,7 @@ async def execute_payment_node(state: APState) -> dict:
     }
 
     result = await executor.ainvoke(sub_state)
-    sub_events = result.get("events", [])
-    for e in sub_events:
-        await publish(e)
+    sub_events = result.get("events", [])  # already published live; no re-publish needed
 
     processing_results = dict(state.get("processing_results", {}))
     if invoice_id in processing_results:
@@ -226,7 +260,8 @@ def route_after_payment(state: APState) -> str:
     """After payment, go back to controller for next invoice."""
     invoice_batch = state.get("invoice_batch", [])
     processing_results = state.get("processing_results", {})
-    pending = [inv for inv in invoice_batch if inv not in processing_results]
+    pending = [inv for inv in invoice_batch
+               if processing_results.get(inv, {}).get("status") != "paid"]
 
     if pending:
         return "controller"
@@ -277,16 +312,15 @@ async def run_demo(
         except httpx.ConnectError:
             pass
 
-    if attack_mode == "simulate":
-        from attacks.mode3_simulated_compromise import simulate_attack
-        return await simulate_attack()
-
-    # Only issue warrants in Act 3 (auth_stack == "tenuo").
-    # Act 2 runs without warrants — standard auth only.
+    # Issue warrant before simulate so Act 3 simulate can use it.
     if auth_stack == "tenuo" and os.environ.get("TENUO_MODE", "local") == "local":
         from auth.tenuo_local import issue_root_warrant
-        warrant_b64 = await issue_root_warrant()
+        warrant_b64 = issue_root_warrant()
         await log_status("system", "Issued Level 1 root warrant (12 tools, unconstrained)")
+
+    if attack_mode == "simulate":
+        from attacks.mode3_simulated_compromise import simulate_attack
+        return await simulate_attack(auth_stack=auth_stack, warrant_b64=warrant_b64)
 
     initial_state: APState = {
         "messages": [HumanMessage(content="Process pending invoice batch.")],

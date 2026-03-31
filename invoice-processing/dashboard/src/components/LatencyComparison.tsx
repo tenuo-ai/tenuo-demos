@@ -1,101 +1,92 @@
 import { useEffect, useState } from 'react'
-import { fetchAuthDecisions } from '../lib/api'
+
+interface LayerLatency {
+  avg_us: number
+  n: number
+}
+
+const LAYER_LABELS: Record<string, string> = {
+  opa: 'OPA — one HTTP round-trip to policy engine',
+  tenuo: 'Tenuo — in-process warrant check (no network)',
+}
+
+const LAYER_COLORS = {
+  opa: { bar: 'bg-yellow-500', text: 'text-yellow-400' },
+  tenuo: { bar: 'bg-green-500', text: 'text-green-400' },
+}
 
 export function LatencyComparison() {
-  const [opaLatency, setOpaLatency] = useState<number>(0)
-  const [tenuoLatency, setTenuoLatency] = useState<number>(0)
+  const [latency, setLatency] = useState<Record<string, LayerLatency>>({})
 
   useEffect(() => {
     const poll = async () => {
       try {
-        const decisions = await fetchAuthDecisions()
-        const opaDecisions = decisions.filter(
-          (d: { layer: string; latency_us: number }) => d.layer === 'opa'
-        )
-        const tenuoDecisions = decisions.filter(
-          (d: { layer: string; latency_us: number }) => d.layer === 'tenuo'
-        )
-        if (opaDecisions.length > 0) {
-          const avg =
-            opaDecisions.reduce((sum: number, d: { latency_us: number }) => sum + d.latency_us, 0) /
-            opaDecisions.length
-          setOpaLatency(Math.round(avg))
-        }
-        if (tenuoDecisions.length > 0) {
-          const avg =
-            tenuoDecisions.reduce((sum: number, d: { latency_us: number }) => sum + d.latency_us, 0) /
-            tenuoDecisions.length
-          setTenuoLatency(Math.round(avg))
-        }
+        const res = await fetch('/api/db/auth-latency')
+        const data = await res.json()
+        setLatency(data)
       } catch {
-        // ignore
+        // ignore — show stale data on transient errors
       }
     }
     poll()
-    const interval = setInterval(poll, 5000)
+    const interval = setInterval(poll, 3000)
     return () => clearInterval(interval)
   }, [])
 
-  // Don't render if no data yet
-  if (opaLatency === 0 && tenuoLatency === 0) {
-    return (
-      <div className="p-4">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
-          Authorization Latency
-        </h2>
-        <div className="text-gray-600 text-sm">
-          Latency data will appear after processing a batch.
-        </div>
-      </div>
-    )
-  }
-
-  const maxLatency = Math.max(opaLatency, tenuoLatency, 1)
+  const opa = latency['opa']
+  const tenuo = latency['tenuo']
+  const opaUs = opa?.avg_us ?? 0
+  const tenuoUs = tenuo?.avg_us ?? 0
+  const hasData = opaUs > 0 || tenuoUs > 0
+  const maxUs = Math.max(opaUs, tenuoUs, 1)
 
   return (
     <div className="p-4">
       <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
         Authorization Latency
       </h2>
-      <div className="space-y-3">
-        {opaLatency > 0 && (
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-500">OPA (network round-trip)</span>
-              <span className="text-yellow-400">{opaLatency.toLocaleString()}μs</span>
+
+      {!hasData ? (
+        <div className="text-gray-600 text-sm">
+          Latency data will appear after processing a batch.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {(['opa', 'tenuo'] as const).map((layer) => {
+            const us = layer === 'opa' ? opaUs : tenuoUs
+            if (us === 0) return null
+            const meta = latency[layer]
+            const colors = LAYER_COLORS[layer]
+            return (
+              <div key={layer}>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-500">
+                    {LAYER_LABELS[layer]}
+                    {meta && <span className="text-gray-700 ml-1">({meta.n} checks)</span>}
+                  </span>
+                  <span className={`font-mono ${colors.text}`}>{us.toLocaleString()}μs</span>
+                </div>
+                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${colors.bar} rounded-full transition-all duration-500`}
+                    style={{ width: `${(us / maxUs) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )
+          })}
+
+          {opaUs > 0 && tenuoUs > 0 && (
+            <div className="pt-1 text-xs text-gray-500">
+              Tenuo is{' '}
+              <span className="text-green-400 font-medium">
+                {(opaUs / tenuoUs).toFixed(1)}x faster
+              </span>{' '}
+              per authorization check
             </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-yellow-500 rounded-full transition-all"
-                style={{ width: `${(opaLatency / maxLatency) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-        {tenuoLatency > 0 && (
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-gray-500">Tenuo (in-process SDK)</span>
-              <span className="text-green-400">{tenuoLatency}μs</span>
-            </div>
-            <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 rounded-full transition-all"
-                style={{ width: `${(tenuoLatency / maxLatency) * 100}%` }}
-              />
-            </div>
-          </div>
-        )}
-        {opaLatency > 0 && tenuoLatency > 0 && (
-          <div className="text-xs text-gray-500 mt-2">
-            Tenuo is{' '}
-            <span className="text-green-400 font-medium">
-              {Math.round(opaLatency / tenuoLatency)}x faster
-            </span>{' '}
-            — no network round-trip needed
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

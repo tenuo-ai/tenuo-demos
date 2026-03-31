@@ -11,7 +11,7 @@ subagent gets an even narrower warrant without `update_vendor_bank`.
 
 import os
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 

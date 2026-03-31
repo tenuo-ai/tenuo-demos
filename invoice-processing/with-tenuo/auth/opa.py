@@ -11,8 +11,10 @@ sequences two operations that each pass policy individually:
 OPA is stateless — it can't detect that step 1 was malicious setup for step 2.
 """
 
+import json
 import os
 import time
+from typing import Any
 
 import httpx
 

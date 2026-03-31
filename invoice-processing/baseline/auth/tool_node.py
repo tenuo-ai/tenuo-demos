@@ -53,8 +53,8 @@ class AuthenticatedToolNode:
             tool_args = tool_call["args"]
             call_id = tool_call["id"]
 
-            # Evaluate all 4 auth layers and log decisions (use call_id as request_id)
-            decisions = await evaluate_all_layers(self.agent_id, tool_name, tool_args, request_id=call_id)
+            # Evaluate all 4 auth layers and log decisions
+            decisions = await evaluate_all_layers(self.agent_id, tool_name, tool_args)
             for d in decisions:
                 event = {
                     "type": "auth_decision",
@@ -90,12 +90,16 @@ class AuthenticatedToolNode:
                     await publish(events[-1])
                     result_messages.append(ToolMessage(content=result_str, tool_call_id=call_id))
                 except Exception as e:
+                    err_msg = f"Tool error: {e}"
+                    await log_tool_result(self.agent_id, tool_name, err_msg)
                     result_messages.append(
-                        ToolMessage(content=f"Error: {e}", tool_call_id=call_id, status="error")
+                        ToolMessage(content=err_msg, tool_call_id=call_id, status="error")
                     )
             else:
+                missing_msg = f"Tool '{tool_name}' not found."
+                await log_tool_result(self.agent_id, tool_name, missing_msg)
                 result_messages.append(
-                    ToolMessage(content=f"Tool '{tool_name}' not found.", tool_call_id=call_id, status="error")
+                    ToolMessage(content=missing_msg, tool_call_id=call_id, status="error")
                 )
 
         return {"messages": result_messages, "events": events}

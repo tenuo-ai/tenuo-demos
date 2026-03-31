@@ -13,7 +13,7 @@ import json
 import os
 
 import httpx
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 
 from agents.events import agent_status_event, delegation_event
@@ -27,14 +27,23 @@ from server.events import publish
 VENDOR_PORTAL_URL = os.getenv("VENDOR_PORTAL_URL", "http://localhost:8082")
 
 
-async def _fetch_invoice_from_portal(invoice_id: str) -> dict:
-    """Fetch invoice from vendor portal (where injection payloads live)."""
+async def _fetch_invoice_from_portal(invoice_id: str, attack_mode: str | None = None) -> dict:
+    """Fetch invoice from vendor portal (where injection payloads live).
+
+    Raises RuntimeError if the portal is unreachable in injection mode so the
+    demo fails loudly rather than silently returning the clean DB invoice.
+    """
     async with httpx.AsyncClient() as client:
         try:
             resp = await client.get(f"{VENDOR_PORTAL_URL}/api/invoices/{invoice_id}")
             return resp.json()
         except httpx.ConnectError:
-            # Fallback to DB if portal is down
+            if attack_mode == "injection":
+                raise RuntimeError(
+                    "Vendor portal is unreachable — injection payloads cannot be served. "
+                    "Start it with: uvicorn vendor_portal.server:app --port 8082"
+                )
+            # Act 1 (no attack): falling back to DB is fine
             from tools.invoice_tools import read_invoice
             data = await read_invoice.ainvoke({"invoice_id": invoice_id})
             return json.loads(data)
@@ -50,8 +59,9 @@ async def process_invoice_node(state: APState) -> dict:
     if not invoice_id:
         return {"messages": [], "events": []}
 
+
     # Fetch invoice from vendor portal (injection payloads served here)
-    invoice = await _fetch_invoice_from_portal(invoice_id)
+    invoice = await _fetch_invoice_from_portal(invoice_id, attack_mode=state.get("attack_mode"))
 
     # Log delegation
     delegate_tools = ["read_invoice", "read_po", "lookup_vendor",
@@ -66,8 +76,8 @@ async def process_invoice_node(state: APState) -> dict:
         delegation_event("finance-controller", "invoice-processor",
                          tools=delegate_tools, ttl_minutes=10),
     ]
-
-    # Build subgraph with the current auth_stack setting
+    for e in events:
+        await publish(e)
     processor = build_invoice_processor_graph().compile()
 
     # Build the initial message with invoice data (this is where injection arrives)
@@ -98,10 +108,8 @@ async def process_invoice_node(state: APState) -> dict:
 
     result = await processor.ainvoke(sub_state)
 
-    # Collect events and publish them
+    # sub_events were already published live by AuthenticatedToolNode; no re-publish needed
     sub_events = result.get("events", [])
-    for e in sub_events:
-        await publish(e)
 
     # Record result
     processing_results = dict(state.get("processing_results", {}))
@@ -126,18 +134,21 @@ async def execute_payment_node(state: APState) -> dict:
         return {"messages": [], "events": []}
 
     result_data = state.get("processing_results", {}).get(invoice_id, {})
-
-    events = [
-        delegation_event("finance-controller", "payment-executor",
-                         tools=["initiate_payment", "approve_payment", "get_fx_rate"],
-                         ttl_minutes=5),
-    ]
-
-    executor = build_payment_executor_graph().compile()
-
     vendor_id = result_data.get("vendor_id", "")
     amount = result_data.get("amount", 0)
     currency = result_data.get("currency", "USD")
+
+    delegate_tools = ["lookup_vendor", "initiate_payment", "approve_payment", "get_fx_rate"]
+    await log_delegation("finance-controller", "payment-executor", delegate_tools,
+                         invoice_id=invoice_id)
+    events = [
+        delegation_event("finance-controller", "payment-executor",
+                         tools=delegate_tools, ttl_minutes=5),
+    ]
+    for e in events:
+        await publish(e)
+
+    executor = build_payment_executor_graph().compile()
     task_msg = (
         f"Execute payment for invoice {invoice_id}.\n"
         f"Vendor: {vendor_id}, Amount: ${amount} {currency}.\n"
@@ -156,9 +167,7 @@ async def execute_payment_node(state: APState) -> dict:
     }
 
     result = await executor.ainvoke(sub_state)
-    sub_events = result.get("events", [])
-    for e in sub_events:
-        await publish(e)
+    sub_events = result.get("events", [])  # already published live; no re-publish needed
 
     processing_results = dict(state.get("processing_results", {}))
     if invoice_id in processing_results:
@@ -190,7 +199,8 @@ def route_after_payment(state: APState) -> str:
     """After payment, go back to controller for next invoice."""
     invoice_batch = state.get("invoice_batch", [])
     processing_results = state.get("processing_results", {})
-    pending = [inv for inv in invoice_batch if inv not in processing_results]
+    pending = [inv for inv in invoice_batch
+               if processing_results.get(inv, {}).get("status") != "paid"]
 
     if pending:
         return "controller"
@@ -221,13 +231,14 @@ async def run_demo(
     invoice_ids: list[str] | None = None,
     attack_mode: str | None = None,
     auth_stack: str = "standard",
+    warrant_b64: str = "",
 ) -> dict:
     """Run the demo end-to-end.
 
     Args:
         invoice_ids: Specific invoices to process, or None for all pending.
         attack_mode: None, "prompt", "injection", or "simulate".
-        auth_stack: "standard".
+        auth_stack: "standard" or "tenuo".
     """
     run_id = new_run()
     await log_status("system", f"Starting demo run {run_id} (attack={attack_mode})")

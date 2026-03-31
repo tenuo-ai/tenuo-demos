@@ -6,7 +6,7 @@ an injection payload that tricks the agent into updating vendor bank details.
 """
 
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 

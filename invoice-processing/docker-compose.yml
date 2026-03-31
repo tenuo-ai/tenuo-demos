@@ -44,7 +44,7 @@ services:
       - "9090:9090"
     environment:
       TENUO_CONTROL_PLANE_ENABLED: "true"
-      TENUO_CONTROL_PLANE_URL: "${TENUO_CONTROL_PLANE_URL:-https://cloud.tenuo.ai}"
+      TENUO_CONTROL_PLANE_URL: "${TENUO_CONTROL_PLANE_URL:-https://staging.tenuo.ai}"
       TENUO_API_KEY: "${TENUO_API_KEY}"
       TENUO_AUTHORIZER_NAME: "demo-ap-authorizer"
 

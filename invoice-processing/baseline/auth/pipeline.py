@@ -11,6 +11,8 @@ import logging
 import uuid
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 from auth.gcp_sa import check_gcp_sa
 from auth.oauth import check_oauth
 from auth.opa import check_opa
@@ -18,14 +20,11 @@ from auth.spicedb import check_spicedb
 from auth.types import AuthDecision, AuthRequest
 from tools.db import get_pool
 
-logger = logging.getLogger(__name__)
-
 
 async def evaluate_all_layers(
     agent_id: str,
     tool_name: str,
     tool_args: dict[str, Any],
-    request_id: str = "",
 ) -> list[AuthDecision]:
     """Run all 4 auth layers and return their decisions.
 
@@ -36,7 +35,7 @@ async def evaluate_all_layers(
         agent_id=agent_id,
         tool_name=tool_name,
         tool_args=tool_args,
-        request_id=request_id or str(uuid.uuid4()),
+        request_id=str(uuid.uuid4()),
     )
 
     decisions = []
