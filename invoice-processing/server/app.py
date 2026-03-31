@@ -628,12 +628,37 @@ async def _run_agent_graph():
 
         # In Cloud mode, get warrant from Tenuo Cloud.
         # Option A: pre-loaded warrant via TENUO_WARRANT env var
-        #   (fire the trigger manually from staging.tenuo.ai, paste the token here)
+        #   (fire the trigger manually from cloud.tenuo.ai, paste the token here)
         # Option B: fire the trigger automatically using TENUO_ADMIN_API_KEY
         warrant_b64 = ""
         if _demo_state["auth_stack"] == "tenuo" and _demo_state["tenuo_mode"] == "cloud":
             preloaded = os.environ.get("TENUO_WARRANT", "")
             if preloaded:
+                # Validate before running — expired warrant makes every tool call fail silently
+                try:
+                    from tenuo_core import Warrant as _Warrant
+                    _w = _Warrant.from_base64(preloaded)
+                    if _w.is_expired():
+                        import datetime as _dt
+                        _exp_str = str(_w.expires_at())
+                        try:
+                            _exp = _dt.datetime.fromisoformat(_exp_str)
+                            _now = _dt.datetime.now(_dt.timezone.utc)
+                            _ago = int((_now - _exp).total_seconds() / 60)
+                            _ago_str = f"{_ago}m ago" if _ago < 60 else f"{_ago // 60}h ago"
+                        except Exception:
+                            _ago_str = f"at {_exp_str}"
+                        await publish({
+                            "type": "demo_error",
+                            "error": f"Warrant expired {_ago_str}. Fire a new trigger at cloud.tenuo.ai, paste the token into TENUO_WARRANT in .env, then restart the server.",
+                        })
+                        return
+                except Exception as _e:
+                    await publish({
+                        "type": "demo_error",
+                        "error": f"Warrant in TENUO_WARRANT is unreadable ({type(_e).__name__}). Paste a fresh token from cloud.tenuo.ai into .env and restart.",
+                    })
+                    return
                 warrant_b64 = preloaded
                 await publish({"type": "status", "message": "Using pre-loaded warrant from TENUO_WARRANT"})
             else:
@@ -644,7 +669,7 @@ async def _run_agent_graph():
                 else:
                     await publish({
                         "type": "demo_error",
-                        "error": "Tenuo not armed — warrant issuance failed. Set TENUO_WARRANT (paste token from staging.tenuo.ai) or set TENUO_ADMIN_API_KEY for auto-fire.",
+                        "error": "No warrant — fire a trigger at cloud.tenuo.ai, paste the token into TENUO_WARRANT in .env, then restart the server.",
                     })
                     return
 

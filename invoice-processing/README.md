@@ -75,7 +75,7 @@ See [DIFF.md](DIFF.md) for the exact code changes between baseline and with-tenu
 | Mode | `TENUO_MODE=` | What it does |
 |------|---------------|-------------|
 | Local SDK | `local` | Warrants issued locally. No cloud. |
-| Tenuo Cloud | `cloud` | Triggers on [staging.tenuo.ai](https://staging.tenuo.ai). Receipt streaming. |
+| Tenuo Cloud | `cloud` | Triggers on [cloud.tenuo.ai](https://cloud.tenuo.ai). Receipt streaming. |
 
 Cloud mode requires a Tenuo Cloud account and the following env vars in `.env`:
 
@@ -94,5 +94,5 @@ A trigger named `ap-invoice-batch-v7` must exist in the Tenuo Cloud control plan
 
 - [Tenuo](https://tenuo.ai) — Cryptographic authorization for AI agents
 - [Tenuo Core](https://github.com/tenuo-ai/tenuo) — Open source Rust kernel + Python SDK
-- [Tenuo Cloud](https://tenuo.ai) — Control plane for warrant management
+- [Tenuo Cloud](https://cloud.tenuo.ai) — Control plane for warrant management
 - [Early access](https://tenuo.ai/early-access.html)

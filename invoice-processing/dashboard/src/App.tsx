@@ -20,6 +20,7 @@ export default function App() {
     running: false,
   })
   const [hasLogs, setHasLogs] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
 
   // Fetch initial state
   useEffect(() => {
@@ -63,6 +64,12 @@ export default function App() {
     if (last.type === 'demo_completed' || last.type === 'demo_error') {
       setState((s) => ({ ...s, running: false }))
     }
+    if (last.type === 'demo_error') {
+      setDemoError((last as { error?: string }).error ?? 'Unknown error')
+    }
+    if (last.type === 'demo_completed') {
+      setDemoError(null)
+    }
   }, [events])
 
   const handleStateChange = (newState: DemoState) => {
@@ -76,6 +83,7 @@ export default function App() {
   const handleReset = (newState: DemoState) => {
     setState(newState)
     setHasLogs(false)  // reset always wipes the DB
+    setDemoError(null)
   }
 
   // Act 1 is always the stable overview — architecture + data preview.
@@ -99,12 +107,12 @@ export default function App() {
           <span className="text-blue-400 ml-2 animate-pulse">Processing batch...</span>
         )}
         <div className="flex-1" />
-        {state.act === 3 && state.tenuo_mode === 'cloud' && (
+        {state.act === 3 && state.tenuo_mode === 'cloud' && !demoError && (
           <span className="text-blue-400 mr-2">Cloud mode — receipts streaming to Tenuo Cloud</span>
         )}
         {state.act === 3 && (
           <a
-            href="https://staging.tenuo.ai"
+            href="https://cloud.tenuo.ai"
             target="_blank"
             rel="noopener"
             className="text-green-500 hover:text-green-400"
@@ -113,6 +121,23 @@ export default function App() {
           </a>
         )}
       </div>
+
+      {/* Error banner — shown below status bar when a run fails */}
+      {demoError && !state.running && (
+        <div className="px-4 py-2.5 bg-red-950/60 border-b border-red-800/50 flex items-start gap-3">
+          <span className="text-red-400 text-sm mt-0.5 shrink-0">⚠</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-red-300 text-xs">{demoError}</span>
+          </div>
+          <button
+            onClick={() => setDemoError(null)}
+            className="text-red-600 hover:text-red-400 text-xs shrink-0 mt-0.5"
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Main content */}
       {showArchitecture ? (
