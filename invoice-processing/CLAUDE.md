@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Enterprise sales demo for Tenuo Cloud. Three-act structure: (1) show AP automation working, (2) show 4 auth layers failing under attack, (3) show Tenuo stopping all attacks + Tenuo Cloud features.
+Demo of the AP automation use case for Tenuo. Three-act structure: (1) show AP automation working, (2) show 4 auth layers failing under attack, (3) show Tenuo stopping all attacks + Tenuo Cloud features.
 
 ## Structure
 
@@ -49,7 +49,7 @@ make deploy           # Deploy to GCP
 | OAuth | Static dict in `auth/oauth.py` | No — simulated in-memory |
 | SpiceDB | In-memory fallback in `auth/spicedb.py` | No — simulated in-memory |
 | OPA | HTTP call to `localhost:8181` | Yes — needs `docker compose up -d opa` |
-| Tenuo | Local SDK or Tenuo Cloud | SDK only for local mode |
+| Tenuo | Local SDK or Tenuo Cloud | No credentials needed for local mode |
 
 Only Postgres and OPA need to be running locally.
 

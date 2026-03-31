@@ -37,7 +37,7 @@ cd dashboard && npm install && npm run dev
 > **Act 3** requires switching to the Tenuo implementation:
 > ```bash
 > ./scripts/switch-mode.sh with-tenuo
-> # then restart the server
+> # then restart uvicorn server.app:app (port 8080)
 > ```
 
 Open http://localhost:3000
@@ -51,7 +51,7 @@ baseline/               The app WITHOUT Tenuo
   tools/                Tool definitions (invoice, vendor, payment)
 
 with-tenuo/             Only the files that CHANGE to add Tenuo
-  agents/               3 modified files (graph.py, invoice_processor, payment_executor)
+  agents/               3 modified files (graph.py, invoice_processor.py, payment_executor.py)
   auth/                 3 new files (tenuo_local.py, tenuo_integration.py, tenuo_tool_node.py)
                         2 updated files (pipeline.py, tool_node.py — minor request ID tracking)
 
@@ -94,5 +94,5 @@ A trigger named `ap-invoice-batch-v7` must exist in the Tenuo Cloud control plan
 
 - [Tenuo](https://tenuo.ai) — Cryptographic authorization for AI agents
 - [Tenuo Core](https://github.com/tenuo-ai/tenuo) — Open source Rust kernel + Python SDK
-- [Tenuo Cloud](https://staging.tenuo.ai) — Control plane for warrant management
+- [Tenuo Cloud](https://tenuo.ai) — Control plane for warrant management
 - [Early access](https://tenuo.ai/early-access.html)

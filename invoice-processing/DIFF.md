@@ -1,10 +1,10 @@
 # What changes to add Tenuo
 
-The complete diff between `baseline/` and `with-tenuo/`. Three agent files change, three new auth files are added, and two existing auth files get minor plumbing updates (`pipeline.py`, `tool_node.py`) for request ID tracking.
+The complete diff between `baseline/` and `with-tenuo/`. Three agent files change, three new auth files are added, and two existing auth files get minor updates (`pipeline.py`, `tool_node.py`) to pass a shared request ID so the dashboard can group auth decisions by tool call.
 
 ## 1. Invoice Processor (`agents/invoice_processor.py`)
 
-The key change — swap `AuthenticatedToolNode` for `TenuoToolNode`:
+The key change — swap `AuthenticatedToolNode` for `TenuoToolNode`. The `use_tenuo` parameter lets `graph.py` build either version from the same function signature:
 
 ```diff
 -def build_invoice_processor_graph() -> StateGraph:
