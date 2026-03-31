@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - name: Verify all imports resolve
+        run: |
+          python -c "from agents.graph import build_ap_graph"
+          python -c "from auth.tool_node import AuthenticatedToolNode"
+          python -c "from auth.tenuo_local import build_tenuo_tool_node_local"
+          python -c "from auth.tenuo_integration import build_tenuo_tool_node"
+          python -c "from server.events import publish"
+          python -c "from tools.invoice_tools import read_invoice"
+          python -c "from attacks.payloads import INJECTION_MAP"
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - working-directory: dashboard
+        run: npm install
+      - working-directory: dashboard
+        run: npx tsc --noEmit

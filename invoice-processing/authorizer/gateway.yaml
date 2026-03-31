@@ -1,0 +1,126 @@
+version: "1"
+
+settings:
+  warrant_header: "X-Tenuo-Warrant"
+  pop_header: "X-Tenuo-PoP"
+  clock_tolerance_secs: 30
+  debug_mode: true
+
+control_plane:
+  audit:
+    enabled: true
+    batch_size: 10
+    flush_interval: 1s
+
+tools:
+  read_invoice:
+    description: "Read invoice details"
+    constraints:
+      invoice_id:
+        from: body
+        path: "invoice_id"
+  read_po:
+    description: "Read purchase order"
+    constraints:
+      po_id:
+        from: body
+        path: "po_id"
+  list_invoices:
+    description: "List invoices"
+    constraints:
+      status:
+        from: body
+        path: "status"
+  lookup_vendor:
+    description: "Look up vendor details"
+    constraints:
+      vendor_id:
+        from: body
+        path: "vendor_id"
+  verify_vendor:
+    description: "Verify vendor identity"
+    constraints:
+      vendor_id:
+        from: body
+        path: "vendor_id"
+  update_vendor_bank:
+    description: "Update vendor bank details"
+    constraints:
+      vendor_id:
+        from: body
+        path: "vendor_id"
+  approve_invoice:
+    description: "Approve invoice for payment"
+    constraints:
+      invoice_id:
+        from: body
+        path: "invoice_id"
+  initiate_payment:
+    description: "Initiate payment"
+    constraints:
+      invoice_id:
+        from: body
+        path: "invoice_id"
+  approve_payment:
+    description: "Approve payment"
+    constraints:
+      payment_id:
+        from: body
+        path: "payment_id"
+  get_fx_rate:
+    description: "Get foreign exchange rate"
+    constraints:
+      from_currency:
+        from: body
+        path: "from_currency"
+  flag_expense:
+    description: "Flag expense for review"
+    constraints:
+      invoice_id:
+        from: body
+        path: "invoice_id"
+  approve_expense:
+    description: "Approve expense"
+    constraints:
+      invoice_id:
+        from: body
+        path: "invoice_id"
+
+# Each tool gets its own route
+routes:
+  - pattern: "/authorize/read_invoice"
+    method: ["POST"]
+    tool: "read_invoice"
+  - pattern: "/authorize/read_po"
+    method: ["POST"]
+    tool: "read_po"
+  - pattern: "/authorize/list_invoices"
+    method: ["POST"]
+    tool: "list_invoices"
+  - pattern: "/authorize/lookup_vendor"
+    method: ["POST"]
+    tool: "lookup_vendor"
+  - pattern: "/authorize/verify_vendor"
+    method: ["POST"]
+    tool: "verify_vendor"
+  - pattern: "/authorize/update_vendor_bank"
+    method: ["POST"]
+    tool: "update_vendor_bank"
+  - pattern: "/authorize/approve_invoice"
+    method: ["POST"]
+    tool: "approve_invoice"
+  - pattern: "/authorize/initiate_payment"
+    method: ["POST"]
+    tool: "initiate_payment"
+  - pattern: "/authorize/approve_payment"
+    method: ["POST"]
+    tool: "approve_payment"
+  - pattern: "/authorize/get_fx_rate"
+    method: ["POST"]
+    tool: "get_fx_rate"
+  - pattern: "/authorize/flag_expense"
+    method: ["POST"]
+    tool: "flag_expense"
+  - pattern: "/authorize/approve_expense"
+    method: ["POST"]
+    tool: "approve_expense"

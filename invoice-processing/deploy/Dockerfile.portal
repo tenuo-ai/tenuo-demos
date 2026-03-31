@@ -1,0 +1,11 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY pyproject.toml .
+RUN pip install --no-cache-dir ".[dev]"
+
+COPY vendor_portal/ vendor_portal/
+COPY db/ db/
+
+EXPOSE 8082
+CMD ["uvicorn", "vendor_portal.server:app", "--host", "0.0.0.0", "--port", "8082"]
