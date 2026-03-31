@@ -154,7 +154,7 @@ export default function App() {
           <div className="w-1/2 overflow-y-auto">
             <InvoiceInspector attackEnabled={state.attack_mode !== null} />
             <div className="border-t border-gray-800">
-              <AuthDecisionPanel tenuoActive={state.act === 3} />
+              <AuthDecisionPanel />
             </div>
             <div className="border-t border-gray-800">
               <DatabaseState />

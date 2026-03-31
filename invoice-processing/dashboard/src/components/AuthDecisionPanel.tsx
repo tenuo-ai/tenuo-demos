@@ -7,7 +7,7 @@
  * - Auth decision table (one row per tool call, one column per auth layer)
  */
 import { useEffect, useState } from 'react'
-import { fetchInvoiceAuthSummary, fetchWarrantInfo } from '../lib/api'
+import { fetchInvoiceAuthSummary } from '../lib/api'
 
 const LAYERS = ['gcp_sa', 'oauth', 'spicedb', 'opa', 'tenuo']
 const LAYER_LABELS: Record<string, string> = {
@@ -16,120 +16,6 @@ const LAYER_LABELS: Record<string, string> = {
   spicedb: 'SpiceDB',
   opa: 'OPA',
   tenuo: 'Tenuo',
-}
-
-// Static tool lists for attenuated sub-warrants.
-// Derived from attenuate_for_invoice_processor_cloud() and attenuate_for_payment_executor_cloud().
-const INVOICE_PROCESSOR_TOOLS = new Set([
-  'read_invoice', 'read_po', 'lookup_vendor', 'verify_vendor', 'approve_invoice',
-])
-const PAYMENT_EXECUTOR_TOOLS = new Set([
-  'lookup_vendor', 'initiate_payment', 'approve_payment', 'get_fx_rate',
-])
-const PAYMENT_PINNED_TOOLS = new Set(['initiate_payment'])
-
-interface WarrantTool {
-  name: string
-  constraints: Record<string, string>
-}
-
-function WarrantChain({ tools }: { tools: WarrantTool[] }) {
-  const [open, setOpen] = useState(false)
-
-  const sortedTools = [...tools].sort((a, b) => a.name.localeCompare(b.name))
-
-  return (
-    <div className="mb-3">
-      {/* Always-visible delegation rail */}
-      <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
-        <span className="text-yellow-600">🔑</span>
-        <span className="text-gray-500">Root</span>
-        <span className="text-gray-700 mx-0.5">→</span>
-        <span className="text-blue-400 font-medium">Invoice Proc</span>
-        <span className="font-mono px-1.5 py-0.5 rounded bg-red-950/50 text-red-400 text-[10px]">
-          − update_vendor_bank
-        </span>
-        <span className="text-gray-700 mx-0.5">→</span>
-        <span className="text-purple-400 font-medium">Payment Exec</span>
-        <span className="font-mono px-1.5 py-0.5 rounded bg-purple-950/50 text-purple-400 text-[10px]">
-          bank_account 🔒
-        </span>
-        <button
-          onClick={() => setOpen(!open)}
-          className="ml-1 text-gray-700 hover:text-gray-400 transition-colors"
-          title="Show full warrant table"
-        >
-          {open ? '▾' : '▸'}
-        </button>
-      </div>
-
-      {open && (
-        <div className="mt-2 rounded border border-gray-800 bg-gray-900/60 overflow-hidden">
-          <div className="px-3 pt-2 pb-1 text-[9px] text-gray-600 border-b border-gray-800">
-            Issued by Finance Controller before delegation — cannot be widened by any agent
-          </div>
-          {/* Column headers */}
-          <div className="grid grid-cols-[1fr_auto_auto_auto] text-[9px] uppercase tracking-wider text-gray-600 border-b border-gray-800 px-3 py-1.5">
-            <span>Tool</span>
-            <span className="w-20 text-center text-gray-500">Root</span>
-            <span className="w-24 text-center text-blue-700">Invoice Proc</span>
-            <span className="w-24 text-center text-purple-700">Payment Exec</span>
-          </div>
-
-          <div className="max-h-56 overflow-y-auto">
-            {sortedTools.map((t) => {
-              const inInvoice = INVOICE_PROCESSOR_TOOLS.has(t.name)
-              const inPayment = PAYMENT_EXECUTOR_TOOLS.has(t.name)
-              const isPinned = PAYMENT_PINNED_TOOLS.has(t.name)
-              const isRemovedFromInvoice = !inInvoice
-              const isAttackTool = t.name === 'update_vendor_bank'
-              return (
-                <div
-                  key={t.name}
-                  className={`grid grid-cols-[1fr_auto_auto_auto] items-center px-3 py-0.5 text-[11px] border-b border-gray-800/50 last:border-0 ${
-                    isAttackTool ? 'bg-red-950/20' : ''
-                  }`}
-                >
-                  <span className={`font-mono ${isAttackTool ? 'text-red-400' : 'text-gray-400'}`}>
-                    {t.name}
-                    {isAttackTool && (
-                      <span className="ml-1 text-[9px] text-red-600">← attack vector</span>
-                    )}
-                  </span>
-                  {/* Root */}
-                  <span className="w-20 text-center text-green-700">✓</span>
-                  {/* Invoice Processor */}
-                  <span className={`w-24 text-center ${
-                    inInvoice
-                      ? 'text-blue-600'
-                      : isAttackTool
-                        ? 'text-red-500 font-bold'
-                        : 'text-gray-700'
-                  }`}>
-                    {inInvoice ? '✓' : isRemovedFromInvoice ? (isAttackTool ? '✗ removed' : '—') : '—'}
-                  </span>
-                  {/* Payment Executor */}
-                  <span className={`w-24 text-center ${inPayment ? 'text-purple-500' : 'text-gray-700'}`}>
-                    {inPayment
-                      ? isPinned
-                        ? <span>✓ <span className="text-[9px] text-purple-700">🔒 pinned</span></span>
-                        : '✓'
-                      : '—'}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="px-3 py-1.5 text-[9px] text-gray-700 border-t border-gray-800 flex gap-3">
-            <span><span className="text-blue-700">Invoice Proc</span> = root minus <span className="text-red-600">update_vendor_bank</span></span>
-            <span>·</span>
-            <span><span className="text-purple-700">Payment Exec</span> = payment tools, bank details <span className="text-purple-700">🔒 pinned</span> from vendor master</span>
-          </div>
-        </div>
-      )}
-    </div>
-  )
 }
 
 interface LayerDecision {
@@ -166,10 +52,9 @@ interface InvoiceSummary {
 
 const ATTACKER_ACCOUNT = '8847291034'
 
-export function AuthDecisionPanel({ tenuoActive = false }: { tenuoActive?: boolean }) {
+export function AuthDecisionPanel() {
   const [summaries, setSummaries] = useState<InvoiceSummary[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
-  const [warrantTools, setWarrantTools] = useState<WarrantTool[]>([])
 
   useEffect(() => {
     const poll = async () => {
@@ -180,13 +65,6 @@ export function AuthDecisionPanel({ tenuoActive = false }: { tenuoActive?: boole
     poll()
     const interval = setInterval(poll, 2000)
     return () => clearInterval(interval)
-  }, [])
-
-  // Fetch warrant info once (it doesn't change between polls)
-  useEffect(() => {
-    fetchWarrantInfo()
-      .then((info) => { if (info.warrant?.tools) setWarrantTools(info.warrant.tools) })
-      .catch(() => {})
   }, [])
 
   const hasTenuo = summaries.some((s) =>
@@ -200,7 +78,6 @@ export function AuthDecisionPanel({ tenuoActive = false }: { tenuoActive?: boole
         <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
           Authorization Decisions
         </h2>
-        {tenuoActive && warrantTools.length > 0 && <WarrantChain tools={warrantTools} />}
         <div className="text-gray-600 text-sm text-center py-4">
           Decisions will appear here when you process a batch.
         </div>
@@ -214,10 +91,6 @@ export function AuthDecisionPanel({ tenuoActive = false }: { tenuoActive?: boole
         Authorization Decisions
       </h2>
 
-      {/* Warrant chain — visible only in Act 3 / Tenuo mode */}
-      {tenuoActive && warrantTools.length > 0 && (
-        <WarrantChain tools={warrantTools} />
-      )}
 
       <div className="space-y-4">
         {summaries.filter((s) => s.tool_calls.length > 0).map((summary) => {
@@ -362,13 +235,16 @@ export function AuthDecisionPanel({ tenuoActive = false }: { tenuoActive?: boole
                                   </div>
                                 )}
                                 {tenuoDeny && (
-                                  <div className="text-[9px] text-red-400/70 mt-0.5">
-                                    {tc.layers.tenuo?.reason?.includes('not authorize')
-                                      ? 'not in task delegation'
-                                      : tc.layers.tenuo?.reason?.includes('bank_account')
-                                        ? 'bank account pinned at delegation time'
-                                        : 'denied'
-                                    }
+                                  <div className="mt-0.5 space-y-0.5">
+                                    <div className="text-[9px] text-red-400/70">
+                                      {tc.layers.tenuo?.reason?.includes('not authorize')
+                                        ? 'not in task delegation'
+                                        : tc.layers.tenuo?.reason?.includes('bank_account')
+                                          ? 'bank account pinned at delegation time'
+                                          : 'denied'
+                                      }
+                                    </div>
+                                    <div className="text-[9px] text-gray-600">scope set before run · cannot be widened</div>
                                   </div>
                                 )}
                               </td>
