@@ -124,7 +124,7 @@ export default function App() {
           <div className="w-1/2 overflow-y-auto">
             <InvoiceInspector attackEnabled={false} />
             <div className="border-t border-gray-800">
-              <DatabaseState />
+              <DatabaseState act={state.act} />
             </div>
             {/* Act 1 call-to-action */}
             {state.act === 1 && (
@@ -157,7 +157,7 @@ export default function App() {
               <AuthDecisionPanel />
             </div>
             <div className="border-t border-gray-800">
-              <DatabaseState />
+              <DatabaseState act={state.act} />
             </div>
             <div className="border-t border-gray-800">
               <LatencyComparison />

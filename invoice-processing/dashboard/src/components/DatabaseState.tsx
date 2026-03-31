@@ -6,7 +6,7 @@ import type { Vendor, Payment, BankChange } from '../lib/types'
 const ATTACKER_ACCOUNT = '8847291034'
 const ATTACKER_ROUTING = '071000013'
 
-export function DatabaseState() {
+export function DatabaseState({ act = 1 }: { act?: number }) {
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [payments, setPayments] = useState<Payment[]>([])
   const [bankChanges, setBankChanges] = useState<BankChange[]>([])
@@ -78,8 +78,8 @@ export function DatabaseState() {
         </table>
       </div>
 
-      {/* Clean-state confirmation — only after a run with no bank changes */}
-      {payments.length > 0 && bankChanges.length === 0 && (
+      {/* Clean-state confirmation — only meaningful in Act 3 where an attack was attempted and blocked */}
+      {act === 3 && payments.length > 0 && bankChanges.length === 0 && (
         <div className="text-[10px] text-green-700 mt-1">
           No unauthorized bank changes detected
         </div>
