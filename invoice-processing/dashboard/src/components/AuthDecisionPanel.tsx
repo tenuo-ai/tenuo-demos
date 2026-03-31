@@ -40,19 +40,34 @@ function WarrantChain({ tools }: { tools: WarrantTool[] }) {
 
   return (
     <div className="mb-3">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 text-[11px] text-gray-500 hover:text-gray-300 transition-colors group"
-      >
+      {/* Always-visible delegation rail */}
+      <div className="flex items-center gap-1.5 text-[11px] flex-wrap">
         <span className="text-yellow-600">🔑</span>
-        <span className="font-medium text-gray-400 group-hover:text-gray-200">Warrant chain</span>
-        <span className="text-gray-600">·</span>
-        <span>{tools.length} root tools</span>
-        <span className="ml-1 text-gray-700">{open ? '▾' : '▸'}</span>
-      </button>
+        <span className="text-gray-500">Root</span>
+        <span className="text-gray-700 mx-0.5">→</span>
+        <span className="text-blue-400 font-medium">Invoice Proc</span>
+        <span className="font-mono px-1.5 py-0.5 rounded bg-red-950/50 text-red-400 text-[10px]">
+          − update_vendor_bank
+        </span>
+        <span className="text-gray-700 mx-0.5">→</span>
+        <span className="text-purple-400 font-medium">Payment Exec</span>
+        <span className="font-mono px-1.5 py-0.5 rounded bg-purple-950/50 text-purple-400 text-[10px]">
+          bank_account 🔒
+        </span>
+        <button
+          onClick={() => setOpen(!open)}
+          className="ml-1 text-gray-700 hover:text-gray-400 transition-colors"
+          title="Show full warrant table"
+        >
+          {open ? '▾' : '▸'}
+        </button>
+      </div>
 
       {open && (
         <div className="mt-2 rounded border border-gray-800 bg-gray-900/60 overflow-hidden">
+          <div className="px-3 pt-2 pb-1 text-[9px] text-gray-600 border-b border-gray-800">
+            Issued by Finance Controller before delegation — cannot be widened by any agent
+          </div>
           {/* Column headers */}
           <div className="grid grid-cols-[1fr_auto_auto_auto] text-[9px] uppercase tracking-wider text-gray-600 border-b border-gray-800 px-3 py-1.5">
             <span>Tool</span>
