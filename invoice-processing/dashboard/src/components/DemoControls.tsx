@@ -4,9 +4,10 @@ import { setAct, setAttackMode, setTenuoMode, startDemo, resetDemo } from '../li
 interface Props {
   state: DemoState
   onStateChange: (state: DemoState) => void
+  onReset: (state: DemoState) => void
 }
 
-export function DemoControls({ state, onStateChange }: Props) {
+export function DemoControls({ state, onStateChange, onReset }: Props) {
   const handleAct = async (act: number) => {
     const s = await setAct(act)
     onStateChange(s)
@@ -24,7 +25,7 @@ export function DemoControls({ state, onStateChange }: Props) {
 
   const handleReset = async () => {
     const s = await resetDemo()
-    onStateChange(s)
+    onReset(s)
   }
 
   return (
@@ -59,6 +60,11 @@ export function DemoControls({ state, onStateChange }: Props) {
             <button
               key={mode}
               onClick={() => handleAttack(mode)}
+              title={
+                mode === 'simulate'
+                  ? 'Directly calls update_vendor_bank without LLM involvement — tests the auth layer in isolation'
+                  : undefined
+              }
               className={`px-3 py-1 text-sm rounded transition-colors ${
                 (state.attack_mode ?? 'off') === mode
                   ? mode === 'off'
@@ -98,6 +104,11 @@ export function DemoControls({ state, onStateChange }: Props) {
                 const s = await setTenuoMode(mode)
                 onStateChange(s)
               }}
+              title={
+                mode === 'cloud'
+                  ? 'Requires Tenuo Cloud credentials — see README for setup'
+                  : undefined
+              }
               className={`px-3 py-1 text-sm rounded transition-colors ${
                 state.tenuo_mode === mode
                   ? mode === 'cloud'
@@ -106,7 +117,7 @@ export function DemoControls({ state, onStateChange }: Props) {
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              {mode === 'local' ? 'Local SDK' : 'Tenuo Cloud'}
+              {mode === 'local' ? 'Local SDK' : 'Tenuo Cloud ↗'}
             </button>
           ))}
         </div>
@@ -115,7 +126,7 @@ export function DemoControls({ state, onStateChange }: Props) {
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Action buttons — Process Batch only in Acts 2 & 3 */}
+      {/* Action buttons — hidden in Act 1 (overview only) */}
       {state.act !== 1 && (
         <button
           onClick={handleStart}

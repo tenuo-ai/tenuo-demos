@@ -48,20 +48,20 @@ async def check_opa(request: AuthRequest) -> AuthDecision:
 
     try:
         client = await _get_client()
+        # Time only the policy decision call — this is what OPA costs in production.
+        # The reason fetch is cosmetic (dashboard label only) and is measured separately.
         resp = await client.post("/v1/data/ap_authorization/allow", json=opa_input)
-        result = resp.json()
-        allowed = result.get("result", False)
+        allowed = resp.json().get("result", False)
+        elapsed = (time.perf_counter_ns() - start) // 1000  # stop clock here
 
-        # Get reason
         resp_reason = await client.post("/v1/data/ap_authorization/reason", json=opa_input)
-        reason_result = resp_reason.json()
-        reason = reason_result.get("result", "No reason provided")
+        reason = resp_reason.json().get("result", "No reason provided")
 
     except (httpx.ConnectError, httpx.TimeoutException):
+        elapsed = (time.perf_counter_ns() - start) // 1000  # stop clock on fallback too
         # Fall back to local evaluation if OPA is unreachable
         allowed, reason = _evaluate_locally(request)
 
-    elapsed = (time.perf_counter_ns() - start) // 1000
     return AuthDecision("opa", allowed, reason, elapsed)
 
 

@@ -10,6 +10,8 @@ import asyncio
 import json
 import logging
 import os
+import subprocess
+import sys
 
 import httpx
 
@@ -21,7 +23,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from server.events import publish, publish_batch, subscribe
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI(title="Tenuo Demo Server", description="Backend for the AP automation demo dashboard")
 
@@ -33,6 +35,26 @@ app.add_middleware(
 )
 
 VENDOR_PORTAL_URL = os.getenv("VENDOR_PORTAL_URL", "http://localhost:8082")
+_SWITCH_MODE_SCRIPT = os.path.join(os.path.dirname(__file__), "..", "scripts", "switch-mode.sh")
+
+
+def _switch_mode(mode: str):
+    """Run switch-mode.sh and flush the module cache for agent/auth/tools packages.
+
+    This means clicking an act button in the dashboard is sufficient —
+    no manual switch-mode.sh run or server restart needed.
+    """
+    script = os.path.abspath(_SWITCH_MODE_SCRIPT)
+    result = subprocess.run([script, mode], capture_output=True, text=True)
+    if result.returncode != 0:
+        logger.warning("switch-mode.sh failed: %s", result.stderr)
+        return
+    logger.info("Switched to %s mode", mode)
+    # Flush cached imports so the next run picks up the new symlink targets
+    stale = [k for k in sys.modules if k.startswith(("agents.", "auth.", "tools."))]
+    for key in stale:
+        del sys.modules[key]
+    logger.info("Flushed %d cached module(s): %s", len(stale), stale)
 
 # Demo state
 _demo_state = {
@@ -64,12 +86,15 @@ async def set_act(act: int):
     if act == 1:
         _demo_state["attack_mode"] = None
         _demo_state["auth_stack"] = "standard"
+        _switch_mode("baseline")
     elif act == 2:
         _demo_state["attack_mode"] = "injection"
         _demo_state["auth_stack"] = "standard"
+        _switch_mode("baseline")
     elif act == 3:
         _demo_state["attack_mode"] = "injection"  # Same attack, Tenuo blocks it
         _demo_state["auth_stack"] = "tenuo"
+        _switch_mode("with-tenuo")
 
     # Auto-reset DB on act switch so presenter doesn't have to
     try:
@@ -114,12 +139,46 @@ async def set_attack_mode(mode: str):
 
 @app.post("/api/tenuo-mode/{mode}")
 async def set_tenuo_mode(mode: str):
-    """Switch Tenuo mode: 'local' or 'cloud'."""
+    """Switch Tenuo mode: 'local' or 'cloud'.
+
+    When switching to cloud, eagerly connects the SDK so the agent claim
+    and heartbeat loop start immediately — before any run is attempted.
+    """
     _demo_state["tenuo_mode"] = mode
-    # Set env var so agent builders pick it up
     os.environ["TENUO_MODE"] = mode
-    await publish({"type": "tenuo_mode_change", "mode": mode})
+
+    if mode == "cloud":
+        try:
+            from auth.tenuo_integration import setup_tenuo
+            setup_tenuo()
+            logger.info("Tenuo Cloud connection confirmed on mode switch")
+            await publish({"type": "tenuo_mode_change", "mode": mode, "cloud_connected": True})
+        except Exception as e:
+            logger.warning("Tenuo Cloud connection failed on mode switch: %s", e)
+            await publish({"type": "tenuo_mode_change", "mode": mode, "cloud_connected": False, "error": str(e)})
+    else:
+        await publish({"type": "tenuo_mode_change", "mode": mode})
+
     return _demo_state
+
+
+@app.get("/api/cloud-status")
+async def get_cloud_status():
+    """Check whether the Tenuo Cloud SDK is connected and the agent is active."""
+    try:
+        from tenuo.control_plane import get_client
+        client = get_client()
+        connected = client is not None
+    except Exception:
+        connected = False
+
+    return {
+        "tenuo_mode": _demo_state["tenuo_mode"],
+        "sdk_connected": connected,
+        "connect_token_set": bool(os.environ.get("TENUO_CONNECT_TOKEN")),
+        "api_key_set": bool(os.environ.get("TENUO_API_KEY")),
+        "control_plane_url": os.environ.get("TENUO_CONTROL_PLANE_URL", ""),
+    }
 
 
 @app.post("/api/start")
@@ -144,6 +203,9 @@ async def reset_demo():
     _demo_state["act"] = 1
     _demo_state["attack_mode"] = None
     _demo_state["auth_stack"] = "standard"
+
+    # Ensure baseline modules are loaded — same as switching to Act 1
+    _switch_mode("baseline")
 
     # Disable vendor portal injection
     try:
@@ -198,6 +260,25 @@ async def get_auth_decisions():
     return [dict(r) for r in rows]
 
 
+@app.get("/api/db/auth-latency")
+async def get_auth_latency():
+    """Average latency per auth layer across all decisions in the DB.
+
+    The DB is reset on every act switch, so no time-window scoping is
+    needed — data here always belongs to the current act's runs.
+    Filtering by latency_us > 0 excludes layers that don't measure time.
+    """
+    from tools.db import get_pool
+    pool = await get_pool()
+    rows = await pool.fetch("""
+        SELECT layer, AVG(latency_us)::int AS avg_us, COUNT(*) AS n
+        FROM auth_decisions
+        WHERE latency_us > 0
+        GROUP BY layer
+    """)
+    return {r["layer"]: {"avg_us": r["avg_us"], "n": r["n"]} for r in rows}
+
+
 @app.get("/api/db/invoice-auth-summary")
 async def get_invoice_auth_summary():
     """Auth decisions grouped by invoice with invoice details."""
@@ -218,22 +299,43 @@ async def get_invoice_auth_summary():
     """)
 
     # Get all auth decisions grouped by request_id
-    decisions = await pool.fetch("""
-        SELECT request_id, agent_id, tool_name, tool_args, layer, decision, reason, latency_us,
-               created_at
-        FROM auth_decisions ORDER BY created_at
+    # Scope to the current run's time window so multiple runs in the same
+    # DB session don't intermingle (no schema change needed).
+    run_start = await pool.fetchval("""
+        SELECT MIN(created_at) FROM agent_logs
+        WHERE run_id = (SELECT run_id FROM agent_logs ORDER BY created_at DESC LIMIT 1)
     """)
+    if run_start:
+        decisions = await pool.fetch("""
+            SELECT request_id, agent_id, tool_name, tool_args, layer, decision, reason, latency_us,
+                   created_at
+            FROM auth_decisions WHERE created_at >= $1 ORDER BY created_at
+        """, run_start)
+    else:
+        decisions = await pool.fetch("""
+            SELECT request_id, agent_id, tool_name, tool_args, layer, decision, reason, latency_us,
+                   created_at
+            FROM auth_decisions ORDER BY created_at
+        """)
 
-    # Group decisions by tool call (request_id)
-    from itertools import groupby
+    # Group decisions by tool call (request_id).
+    # Use a dict — NOT itertools.groupby — because groupby only merges consecutive
+    # equal keys. Standard layers are inserted first for all tools, then Tenuo
+    # inserts follow, so rows for the same request_id are non-consecutive in the DB.
+    import json as _json
+    from collections import OrderedDict
+    groups: OrderedDict = OrderedDict()
+    for row in decisions:
+        req_id = row["request_id"]
+        if req_id not in groups:
+            groups[req_id] = []
+        groups[req_id].append(row)
+
     tool_calls = []
-    for req_id, group in groupby(decisions, key=lambda r: r["request_id"]):
-        recs = list(group)
-        # Try to extract invoice_id from tool_args
+    for req_id, recs in groups.items():
         invoice_id = None
         try:
-            import json
-            args = json.loads(recs[0]["tool_args"]) if recs[0]["tool_args"] else {}
+            args = _json.loads(recs[0]["tool_args"]) if recs[0]["tool_args"] else {}
             invoice_id = args.get("invoice_id")
         except Exception:
             pass
@@ -246,40 +348,46 @@ async def get_invoice_auth_summary():
                 r["layer"]: {"decision": r["decision"], "reason": r["reason"], "latency_us": r["latency_us"]}
                 for r in recs
             },
+            "created_at": recs[0]["created_at"],
             "timestamp": recs[0]["created_at"].isoformat() if recs[0]["created_at"] else None,
         })
 
-    # Assign unmatched tool calls to invoices by timestamp proximity.
-    # Invoices are processed sequentially, so each call belongs to the
-    # invoice being processed at that time.
+    # Assign unmatched tool calls to invoices by sequential timestamp order.
+    # Invoices are processed one at a time, so an unmatched call belongs to
+    # whichever invoice's matched calls bracket it chronologically.
     matched = [tc for tc in tool_calls if tc["invoice_id"] is not None]
     unmatched = [tc for tc in tool_calls if tc["invoice_id"] is None]
 
-    # Build time windows per invoice from matched calls
-    invoice_windows: dict[str, list[str]] = {}  # invoice_id -> [timestamps]
+    # Build per-invoice [min_time, max_time] windows from matched calls
+    import datetime
+    invoice_ranges: dict[str, tuple] = {}
     for tc in matched:
-        inv_id = tc["invoice_id"]
-        if inv_id not in invoice_windows:
-            invoice_windows[inv_id] = []
-        if tc["timestamp"]:
-            invoice_windows[inv_id].append(tc["timestamp"])
-
-    # Assign unmatched calls to the nearest invoice by timestamp
-    for tc in unmatched:
-        if not tc["timestamp"]:
+        if tc["created_at"] is None:
             continue
+        inv_id = tc["invoice_id"]
+        lo, hi = invoice_ranges.get(inv_id, (tc["created_at"], tc["created_at"]))
+        invoice_ranges[inv_id] = (min(lo, tc["created_at"]), max(hi, tc["created_at"]))
+
+    for tc in unmatched:
+        if tc["created_at"] is None:
+            continue
+        ts = tc["created_at"]
         best_inv = None
-        best_dist = float("inf")
-        for inv_id, timestamps in invoice_windows.items():
-            for ts in timestamps:
-                dist = abs(hash(tc["timestamp"]) - hash(ts))
-                if dist < best_dist:
-                    best_dist = dist
-                    best_inv = inv_id
+        best_dist: datetime.timedelta = datetime.timedelta.max
+        for inv_id, (lo, hi) in invoice_ranges.items():
+            # Distance = 0 if within range, else gap to nearest boundary
+            if lo <= ts <= hi:
+                dist = datetime.timedelta(0)
+            else:
+                dist = min(abs(ts - lo), abs(ts - hi))
+            if dist < best_dist:
+                best_dist = dist
+                best_inv = inv_id
         if best_inv:
             tc["invoice_id"] = best_inv
 
     # Build per-invoice summary
+    truly_unmatched = [tc for tc in unmatched if tc["invoice_id"] is None]
     all_calls = matched + [tc for tc in unmatched if tc["invoice_id"] is not None]
     result = []
     for inv in invoices:
@@ -301,6 +409,25 @@ async def get_invoice_auth_summary():
                 "bank_routing": inv["bank_routing"],
             },
             "tool_calls": inv_calls,
+        })
+
+    # Simulation mode: show auth decisions that aren't tied to any specific invoice
+    # (e.g. direct tool calls in mode3_simulated_compromise) under a synthetic entry.
+    if truly_unmatched:
+        result.insert(0, {
+            "invoice": {
+                "id": "simulation",
+                "vendor_id": None,
+                "vendor_name": "Simulated Attack",
+                "amount": None,
+                "currency": None,
+                "description": "Direct tool call bypassing the LLM — all 4 auth layers evaluated.",
+                "status": "simulated",
+                "notes": None,
+                "bank_account": None,
+                "bank_routing": None,
+            },
+            "tool_calls": truly_unmatched,
         })
 
     return result
@@ -328,23 +455,87 @@ async def get_bank_changes():
     return [dict(r) for r in rows]
 
 
+@app.get("/api/warrant-info")
+async def get_warrant_info():
+    """Parse the current root warrant and return its capabilities for the dashboard."""
+    mode = os.environ.get("TENUO_MODE", "local")
+    warrant_b64 = os.environ.get("TENUO_WARRANT")
+
+    if not warrant_b64:
+        return {"mode": mode, "warrant": None}
+
+    try:
+        from tenuo_core import Warrant
+        w = Warrant.from_base64(warrant_b64)
+
+        tool_names: list[str] = list(w.tools) if hasattr(w, "tools") else []
+
+        holder_hex: str | None = None
+        try:
+            holder = w.authorized_holder
+            raw = holder.to_bytes() if hasattr(holder, "to_bytes") else bytes(holder)
+            holder_hex = raw.hex()
+        except Exception:
+            pass
+
+        expires_at: str | None = None
+        try:
+            if hasattr(w, "expires_at") and w.expires_at:
+                expires_at = w.expires_at.isoformat()
+        except Exception:
+            pass
+
+        # Extract per-tool constraints if the SDK exposes them.
+        # We try a few plausible attribute names defensively.
+        tool_details = []
+        for name in tool_names:
+            constraints: dict = {}
+            for attr in ("get_constraints", "tool_constraints", "constraints_for"):
+                if hasattr(w, attr):
+                    try:
+                        c = getattr(w, attr)(name)
+                        if c:
+                            constraints = {k: str(v) for k, v in c.items()}
+                    except Exception:
+                        pass
+                    break
+            tool_details.append({"name": name, "constraints": constraints})
+
+        return {
+            "mode": mode,
+            "warrant": {
+                "tools": tool_details,
+                "holder": holder_hex,
+                "expires_at": expires_at,
+            },
+        }
+    except Exception as e:
+        logger.warning("Failed to parse warrant: %s", e)
+        return {"mode": mode, "warrant": None, "error": str(e)}
+
+
 @app.get("/api/db/agent-logs")
 async def get_agent_logs(run_id: str | None = None, agent_id: str | None = None):
     """Get agent activity logs for the dashboard feed."""
     from tools.db import get_pool
     pool = await get_pool()
-    query = "SELECT * FROM agent_logs"
-    params: list = []
-    conditions = []
-    if run_id:
-        conditions.append(f"run_id = ${len(params) + 1}")
-        params.append(run_id)
+
+    # Default to the most recent run so refreshing mid-run always shows current activity,
+    # not 200 rows of a previous run that happened in the same DB session.
+    if not run_id:
+        run_id = await pool.fetchval(
+            "SELECT run_id FROM agent_logs ORDER BY created_at DESC LIMIT 1"
+        )
+
+    if not run_id:
+        return []
+
+    query = "SELECT * FROM agent_logs WHERE run_id = $1"
+    params: list = [run_id]
     if agent_id:
-        conditions.append(f"agent_id = ${len(params) + 1}")
+        query += " AND agent_id = $2"
         params.append(agent_id)
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-    query += " ORDER BY created_at ASC LIMIT 200"
+    query += " ORDER BY created_at ASC LIMIT 500"
     rows = await pool.fetch(query, *params)
     return [
         {
@@ -367,10 +558,16 @@ async def _fire_trigger_for_warrant() -> str:
 
     Returns the base64-encoded warrant token, or empty string on failure.
     """
-    admin_key = os.environ.get("TENUO_ADMIN_API_KEY", "")
-    control_plane = os.environ.get("TENUO_CONTROL_PLANE_URL", "https://cloud.tenuo.ai")
-    if not admin_key:
-        logger.warning("TENUO_ADMIN_API_KEY not set — trigger fire will fail")
+    api_key = os.environ.get("TENUO_API_KEY", "") or os.environ.get("TENUO_ADMIN_API_KEY", "")
+    # Strip trailing /v1 if present — the SDK reads TENUO_CONTROL_PLANE_URL as a
+    # base URL and adds its own version suffix. We always append /v1 here explicitly
+    # so the trigger API path is correct regardless of how the env var is set.
+    _base = os.environ.get("TENUO_CONTROL_PLANE_URL", "https://api-staging.tenuo.ai").rstrip("/")
+    if _base.endswith("/v1"):
+        _base = _base[:-3]
+    control_plane = f"{_base}/v1"
+    if not api_key:
+        logger.warning("TENUO_API_KEY not set — trigger fire will fail")
         return ""
 
     # Look up the legitimate bank details for V-4521 from the DB
@@ -383,8 +580,8 @@ async def _fire_trigger_for_warrant() -> str:
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"{control_plane}/api/v1/triggers/ap-invoice-batch-v7/fire",
-                headers={"Authorization": admin_key},
+                f"{control_plane}/triggers/ap-invoice-batch-v7/fire",
+                headers={"Authorization": f"Bearer {api_key}"},
                 json={
                     "initiator": {"type": "api_key", "identity": "demo-presenter"},
                     "event_data": {
@@ -401,6 +598,13 @@ async def _fire_trigger_for_warrant() -> str:
                 timeout=10.0,
             )
             data = resp.json()
+            if resp.status_code != 200:
+                logger.warning(
+                    "Trigger fire failed: HTTP %d — %s",
+                    resp.status_code,
+                    data.get("error", {}).get("message", resp.text[:200]),
+                )
+                return ""
             warrant = data.get("warrant", "")
             if warrant:
                 await publish({
@@ -422,16 +626,27 @@ async def _run_agent_graph():
 
         invoice_ids = ["INV-2024-1841", "INV-2024-1847", "INV-2024-1843"]
 
-        # In Cloud mode, fire the trigger to get a warrant from Tenuo Cloud.
-        # In Local mode, the warrant is issued by graph.py via issue_local_warrant().
+        # In Cloud mode, get warrant from Tenuo Cloud.
+        # Option A: pre-loaded warrant via TENUO_WARRANT env var
+        #   (fire the trigger manually from staging.tenuo.ai, paste the token here)
+        # Option B: fire the trigger automatically using TENUO_ADMIN_API_KEY
         warrant_b64 = ""
         if _demo_state["auth_stack"] == "tenuo" and _demo_state["tenuo_mode"] == "cloud":
-            await publish({"type": "status", "message": "Firing trigger on Tenuo Cloud..."})
-            warrant_b64 = await _fire_trigger_for_warrant()
-            if warrant_b64:
-                await publish({"type": "status", "message": "Warrant issued from Tenuo Cloud with pinned bank details"})
+            preloaded = os.environ.get("TENUO_WARRANT", "")
+            if preloaded:
+                warrant_b64 = preloaded
+                await publish({"type": "status", "message": "Using pre-loaded warrant from TENUO_WARRANT"})
             else:
-                await publish({"type": "status", "message": "Trigger fire failed — check TENUO_ADMIN_API_KEY"})
+                await publish({"type": "status", "message": "Firing trigger on Tenuo Cloud..."})
+                warrant_b64 = await _fire_trigger_for_warrant()
+                if warrant_b64:
+                    await publish({"type": "status", "message": "Warrant issued from Tenuo Cloud with pinned bank details"})
+                else:
+                    await publish({
+                        "type": "demo_error",
+                        "error": "Tenuo not armed — warrant issuance failed. Set TENUO_WARRANT (paste token from staging.tenuo.ai) or set TENUO_ADMIN_API_KEY for auto-fire.",
+                    })
+                    return
 
         result = await run_demo(
             invoice_ids=invoice_ids,
@@ -440,9 +655,7 @@ async def _run_agent_graph():
             warrant_b64=warrant_b64,
         )
 
-        if result.get("events"):
-            await publish_batch(result["events"])
-
+        # All events were published live during the run; just signal completion
         await publish({"type": "demo_completed", "results": str(result.get("processing_results", {}))})
 
     except Exception as e:

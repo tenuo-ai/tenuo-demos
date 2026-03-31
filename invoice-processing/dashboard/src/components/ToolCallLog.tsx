@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { fetchAgentLogs } from '../lib/api'
-import type { AgentLog, DemoEvent } from '../lib/types'
+import type { AgentLog } from '../lib/types'
 
 // Agent color scheme
 const AGENT_COLORS: Record<string, { text: string; bg: string; border: string }> = {
@@ -19,18 +19,20 @@ function getColors(agentId: string) {
 
 function EventIcon({ type }: { type: string }) {
   switch (type) {
-    case 'thinking':    return <span title="Agent reasoning">💭</span>
-    case 'tool_call':   return <span title="Tool call">🔧</span>
-    case 'tool_result': return <span title="Tool result">📋</span>
-    case 'delegation':  return <span title="Delegation">🔀</span>
-    case 'status':      return <span title="Status">📌</span>
-    default:            return <span>•</span>
+    case 'thinking':      return <span title="Agent reasoning">💭</span>
+    case 'tool_call':     return <span title="Tool call">🔧</span>
+    case 'tool_result':   return <span title="Tool result">📋</span>
+    case 'delegation':    return <span title="Delegation">🔀</span>
+    case 'tenuo_block':   return <span title="Tenuo blocked">🛡</span>
+    case 'status':        return <span title="Status">📌</span>
+    default:              return <span>•</span>
   }
 }
 
-export function ToolCallLog({ events }: { events: DemoEvent[] }) {
+export function ToolCallLog() {
   const [logs, setLogs] = useState<AgentLog[]>([])
   const [filter, setFilter] = useState<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const poll = async () => {
@@ -45,6 +47,13 @@ export function ToolCallLog({ events }: { events: DemoEvent[] }) {
     const interval = setInterval(poll, 1500)
     return () => clearInterval(interval)
   }, [filter])
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+    }
+  }, [logs])
 
   // Get unique agent IDs for filter buttons
   const agents = [...new Set(logs.map((l) => l.agent_id))].filter((a) => a !== 'system')
@@ -83,7 +92,7 @@ export function ToolCallLog({ events }: { events: DemoEvent[] }) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 min-h-0">
         {logs.map((log) => {
           const colors = getColors(log.agent_id)
           const isAttackTool = log.tool_name === 'update_vendor_bank'
@@ -92,7 +101,9 @@ export function ToolCallLog({ events }: { events: DemoEvent[] }) {
             <div
               key={log.id}
               className={`text-xs px-2 py-1.5 rounded border-l-2 ${
-                isAttackTool
+                log.event_type === 'tenuo_block'
+                  ? 'bg-green-950/40 border-l-green-500'
+                  : isAttackTool
                   ? 'bg-red-950/40 border-l-red-500'
                   : `${colors.bg} ${colors.border}`
               }`}
@@ -110,6 +121,13 @@ export function ToolCallLog({ events }: { events: DemoEvent[] }) {
               {log.event_type === 'thinking' && log.content && (
                 <div className="mt-1 text-gray-300 leading-relaxed whitespace-pre-wrap">
                   {log.content.length > 300 ? log.content.slice(0, 300) + '...' : log.content}
+                </div>
+              )}
+
+              {log.event_type === 'tenuo_block' && (
+                <div className="mt-1">
+                  <span className="text-green-400 font-semibold">🛡 {log.tool_name}</span>
+                  <span className="text-green-600 ml-1 text-[10px]">not in task delegation</span>
                 </div>
               )}
 

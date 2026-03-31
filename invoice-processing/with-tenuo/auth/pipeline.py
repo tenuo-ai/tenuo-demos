@@ -25,17 +25,21 @@ async def evaluate_all_layers(
     agent_id: str,
     tool_name: str,
     tool_args: dict[str, Any],
+    request_id: str | None = None,
 ) -> list[AuthDecision]:
     """Run all 4 auth layers and return their decisions.
 
     All layers are evaluated regardless of earlier results — we want
     to show the audience every layer's decision for every tool call.
+
+    Pass request_id to share the same ID with a Tenuo layer decision so
+    all layers for a single tool call appear in one row in the dashboard.
     """
     request = AuthRequest(
         agent_id=agent_id,
         tool_name=tool_name,
         tool_args=tool_args,
-        request_id=str(uuid.uuid4()),
+        request_id=request_id or str(uuid.uuid4()),
     )
 
     decisions = []

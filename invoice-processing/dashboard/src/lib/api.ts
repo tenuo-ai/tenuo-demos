@@ -60,3 +60,16 @@ export async function fetchAgentLogs(agentId?: string) {
   const res = await fetch(`${BASE}/api/db/agent-logs${params}`)
   return res.json()
 }
+
+export async function fetchWarrantInfo(): Promise<{
+  mode: string
+  warrant: {
+    tools: { name: string; constraints: Record<string, string> }[]
+    holder: string | null
+    expires_at: string | null
+  } | null
+  error?: string
+}> {
+  const res = await fetch(`${BASE}/api/warrant-info`)
+  return res.json()
+}

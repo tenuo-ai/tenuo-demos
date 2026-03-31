@@ -194,9 +194,11 @@ passes_vendor_checks {
           />
         </div>
 
-        <div className="mt-4 p-3 bg-blue-950/20 border border-blue-900/50 rounded text-xs text-blue-300/80">
-          This is not a strawman. Each layer is configured the way a security-conscious enterprise would set it up.
-          The question is: what happens when a properly-authorized agent does something it shouldn't?
+        <div className="mt-4 p-3 bg-blue-950/20 border border-blue-900/50 rounded text-xs text-blue-300/80 space-y-1">
+          <div>Not a strawman — each layer is correctly configured for enterprise use.</div>
+          <div className="text-blue-200/90">
+            All 4 ask <span className="italic">"is this agent authorized?"</span> — none ask <span className="italic">"was this capability delegated for this task?"</span> That's the gap.
+          </div>
         </div>
       </div>
     </div>

@@ -20,12 +20,13 @@ Enterprise sales demo for Tenuo Cloud. Three-act structure: (1) show AP automati
 ## Commands
 
 ```bash
-make dev              # docker-compose up (postgres, spicedb, opa, portal)
+docker compose up -d postgres opa  # Start only the required local services
+                                    # (make dev starts ALL services including
+                                    #  tenuo-authorizer which needs TENUO_API_KEY)
 make seed             # Seed database with fake data
 make reset            # Wipe + re-seed all state
 make run              # Run the LangGraph agents
 make dashboard        # Start dashboard dev server
-make test             # pytest
 make lint             # ruff check + ruff format --check
 make build            # Build all Docker images
 make deploy           # Deploy to GCP
@@ -40,19 +41,28 @@ make deploy           # Deploy to GCP
 - Tools are `@tool` decorated `langchain_core` tools
 - Dashboard connects via SSE to `server/app.py`
 
+## Auth Layers — What's Real vs. Simulated
+
+| Layer | Implementation | Real service? |
+|-------|---------------|---------------|
+| GCP SA | Static dict in `auth/gcp_sa.py` | No — simulated in-memory |
+| OAuth | Static dict in `auth/oauth.py` | No — simulated in-memory |
+| SpiceDB | In-memory fallback in `auth/spicedb.py` | No — simulated in-memory |
+| OPA | HTTP call to `localhost:8181` | Yes — needs `docker compose up -d opa` |
+| Tenuo | Local SDK or Tenuo Cloud | SDK only for local mode |
+
+Only Postgres and OPA need to be running locally.
+
 ## Dependencies
 
-- `tenuo` SDK: install from `../tenuo/tenuo-python` in dev mode
-- SpiceDB: real instance via `authzed` Python client
+- `tenuo[langchain]` SDK: declared in `pyproject.toml`; installed via `uv pip install -e ".[dev]"`
+- SpiceDB: uses real `authzed` gRPC client when `SPICEDB_ENDPOINT` is set, falls back to in-memory (demo only runs postgres + OPA)
 - OPA: real instance, REST API
 - PostgreSQL 16 via `asyncpg`
 
 ## Testing
 
-- `pytest tests/test_tools.py` — tool unit tests
-- `pytest tests/test_auth_layers.py` — auth layer tests
-- `pytest tests/test_graph.py` — graph execution tests
-- `pytest tests/test_attacks.py` — attack mode verification
+No automated tests. Run the demo manually — the three acts are the test.
 
 ## Security
 
