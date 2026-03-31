@@ -10,9 +10,6 @@ node_modules/
 dashboard/dist/
 .ruff_cache/
 
-# Runtime symlinks and merged directory (created by switch-mode.sh)
-invoice-processing/agents
-invoice-processing/auth
-invoice-processing/tools
+# _merged is runtime only (created by switch-mode.sh with-tenuo)
 invoice-processing/_merged
 internal/

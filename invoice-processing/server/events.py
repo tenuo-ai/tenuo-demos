@@ -27,7 +27,7 @@ async def subscribe():
     """Yield events as SSE data. Used by the /events endpoint."""
     while True:
         event = await _event_queue.get()
-        yield f"data: {json.dumps(event)}\n\n"
+        yield {"data": json.dumps(event)}
 
 
 async def publish_batch(events: list[dict]):

@@ -25,10 +25,8 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [selected, setSelected] = useState<string>('INV-2024-1847')
 
-  useEffect(() => {
-    const fetchInvoices = async () => {
+  const fetchInvoices = async () => {
       try {
-        // Fetch from vendor portal (which has injection payloads when enabled)
         const ids = ['INV-2024-1841', 'INV-2024-1847', 'INV-2024-1843']
         const results = await Promise.all(
           ids.map(async (id) => {
@@ -41,6 +39,8 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
         // ignore
       }
     }
+
+  useEffect(() => {
     fetchInvoices()
   }, [attackEnabled])
 
@@ -56,7 +56,7 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
           {['INV-2024-1841', 'INV-2024-1847', 'INV-2024-1843'].map((id) => (
             <button
               key={id}
-              onClick={() => setSelected(id)}
+              onClick={() => { setSelected(id); fetchInvoices() }}
               className={`px-2 py-0.5 text-xs rounded ${
                 selected === id
                   ? id === 'INV-2024-1847'

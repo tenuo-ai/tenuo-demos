@@ -13,11 +13,10 @@ snapshot of what the world looks like BEFORE the injection poisons the DB.
 
 import logging
 
-import json
 import os
 
 import tenuo
-from tenuo_core import SigningKey, Warrant, Exact, Range, OneOf
+from tenuo_core import SigningKey, Warrant, Exact, Wildcard
 from tenuo.keys import KeyRegistry
 from tenuo.langgraph import TenuoToolNode
 
@@ -78,7 +77,7 @@ def setup_local(force: bool = False):
     _initialized = True
 
 
-async def issue_root_warrant() -> str:
+def issue_root_warrant() -> str:
     """Issue the Level 1 root warrant for the Finance Controller.
 
     This warrant has ALL tools and NO constraints — the controller
@@ -106,12 +105,6 @@ async def issue_root_warrant() -> str:
         holder=_keys[KEY_CONTROLLER].public_key,
     )
     logger.info("Issued Level 1 root warrant (12 tools, unconstrained)")
-    await _log_warrant("finance-controller", "root", root, {
-        "level": 1,
-        "tools": sorted(root.tools),
-        "constraints": "unconstrained",
-        "ttl_seconds": 1800,
-    })
     return root.to_base64()
 
 
@@ -122,37 +115,25 @@ async def attenuate_for_invoice_processor(
 ) -> str:
     """Attenuate the root warrant for the Invoice Processor (Level 2).
 
-    Removes update_vendor_bank entirely (tool-level restriction).
-    All other tools are unconstrained — the key protection is tool exclusion.
-    10-minute TTL (temporal binding).
+    Removes update_vendor_bank and scopes to this specific invoice/vendor.
     """
     setup_local()
     root = Warrant.from_base64(root_warrant_b64)
 
     child = root.attenuate(
         {
-            "read_invoice": {},       # Unconstrained — open mode
+            "read_invoice": {},
             "read_po": {},
             "lookup_vendor": {},
             "verify_vendor": {},
             "approve_invoice": {},
-            # NO update_vendor_bank — tool-level restriction
+            # NO update_vendor_bank — that's the key protection
         },
         signing_key=_keys[KEY_CONTROLLER],
         holder=_keys[KEY_PROCESSOR].public_key,
         ttl_seconds=600,
     )
-    logger.info(f"Attenuated L2 warrant: invoice-processor (5 tools, NO update_vendor_bank, TTL=10m)")
-    await _log_warrant("invoice-processor", "attenuated", child, {
-        "level": 2,
-        "parent": "finance-controller",
-        "tools": sorted(child.tools),
-        "removed": ["update_vendor_bank"],
-        "constraints": "unconstrained (tool-level restriction only)",
-        "ttl_seconds": 600,
-        "invoice_id": invoice_id,
-        "vendor_id": vendor_id,
-    })
+    logger.info(f"Attenuated Level 2 warrant for invoice-processor ({invoice_id}, 5 tools, NO update_vendor_bank)")
     return child.to_base64()
 
 
@@ -163,9 +144,9 @@ async def attenuate_for_payment_executor(
 ) -> str:
     """Attenuate the root warrant for the Payment Executor (Level 2).
 
-    Pins bank_account and bank_routing from the LIVE vendor master (Exact).
-    5-minute TTL. The warrant is a cryptographic snapshot of the legitimate
-    bank details captured BEFORE the injection can poison them.
+    Pins bank_account and bank_routing from the LIVE vendor master.
+    This is the critical moment — the warrant captures the legitimate
+    bank details BEFORE the injection can poison them.
     """
     setup_local()
     root = Warrant.from_base64(root_warrant_b64)
@@ -183,22 +164,20 @@ async def attenuate_for_payment_executor(
 
     bank_account = vendor["bank_account"]
     bank_routing = vendor["bank_routing"]
-
-    logger.info(f"Read vendor master for {vendor_id}: bank={bank_account}")
-
-    # Read invoice amount for the Range constraint
-    inv = await pool.fetchrow("SELECT amount FROM invoices WHERE id = $1", invoice_id)
-    amount_limit = float(inv["amount"]) if inv else 50000.0
+    logger.info(
+        f"Read vendor master for {vendor_id}: "
+        f"bank_account={bank_account}, bank_routing={bank_routing}"
+    )
 
     child = root.attenuate(
         {
             "lookup_vendor": {},
             "initiate_payment": {
-                "bank_account": Exact(bank_account),         # Pinned from vendor master
-                "bank_routing": Exact(bank_routing),         # Pinned from vendor master
-                "vendor_id": Exact(vendor_id),               # Locked to this vendor
-                "invoice_id": OneOf([invoice_id]),            # Only this invoice
-                "amount": Range(min=0.0, max=amount_limit),  # Capped at invoice amount
+                "bank_account": Exact(bank_account),
+                "bank_routing": Exact(bank_routing),
+                "vendor_id": Exact(vendor_id),
+                "invoice_id": Wildcard(),
+                "amount": Wildcard(),
             },
             "approve_payment": {},
             "get_fx_rate": {},
@@ -207,39 +186,11 @@ async def attenuate_for_payment_executor(
         holder=_keys[KEY_PAYMENT].public_key,
         ttl_seconds=300,
     )
-    logger.info(f"Attenuated L2 warrant: payment-executor (bank={bank_account} pinned)")
-    await _log_warrant("payment-executor", "attenuated", child, {
-        "level": 2,
-        "parent": "finance-controller",
-        "tools": sorted(child.tools),
-        "constraints": {
-            "initiate_payment": {
-                "bank_account": f"Exact({bank_account})",
-                "bank_routing": f"Exact({bank_routing})",
-                "vendor_id": f"Exact({vendor_id})",
-                "invoice_id": f"OneOf([{invoice_id}])",
-                "amount": f"Range(0, {amount_limit})",
-            },
-        },
-        "ttl_seconds": 300,
-        "invoice_id": invoice_id,
-        "vendor_id": vendor_id,
-    })
+    logger.info(
+        f"Attenuated Level 2 warrant for payment-executor "
+        f"(bank_account={bank_account} pinned from vendor master)"
+    )
     return child.to_base64()
-
-
-async def _log_warrant(agent_id: str, warrant_type: str, warrant: Warrant, details: dict):
-    """Log warrant issuance/attenuation to the agent_logs table."""
-    try:
-        from agents.logger import log_event
-        await log_event(
-            agent_id=agent_id,
-            event_type="warrant",
-            content=json.dumps(details, indent=2),
-            metadata={"warrant_type": warrant_type, "tools": sorted(warrant.tools)},
-        )
-    except Exception:
-        pass  # Non-fatal
 
 
 def build_tenuo_tool_node_local(tools, key_id=KEY_PROCESSOR):

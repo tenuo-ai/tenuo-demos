@@ -81,7 +81,7 @@ export interface AgentLog {
   id: number
   run_id: string
   agent_id: string
-  event_type: 'thinking' | 'tool_call' | 'tool_result' | 'delegation' | 'status'
+  event_type: 'thinking' | 'tool_call' | 'tool_result' | 'delegation' | 'status' | 'tenuo_block'
   content: string | null
   tool_name: string | null
   tool_args: Record<string, unknown> | null

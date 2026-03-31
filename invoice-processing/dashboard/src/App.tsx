@@ -6,7 +6,6 @@ import { AuthDecisionPanel } from './components/AuthDecisionPanel'
 import { ToolCallLog } from './components/ToolCallLog'
 import { DatabaseState } from './components/DatabaseState'
 import { LatencyComparison } from './components/LatencyComparison'
-import { WarrantChain } from './components/WarrantChain'
 import { useEventStream } from './hooks/useEventStream'
 import { fetchState, fetchAgentLogs } from './lib/api'
 import type { DemoState } from './lib/types'
@@ -21,10 +20,26 @@ export default function App() {
     running: false,
   })
   const [hasLogs, setHasLogs] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
 
   // Fetch initial state
   useEffect(() => {
     fetchState().then(setState)
+  }, [])
+
+  // Poll API state to reliably sync running status
+  // (SSE-based reset alone can miss events published before subscription)
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const s = await fetchState()
+        setState((prev) => ({ ...prev, running: s.running }))
+      } catch {
+        // ignore
+      }
+    }
+    const interval = setInterval(poll, 2000)
+    return () => clearInterval(interval)
   }, [])
 
   // Poll for logs to know when to switch from architecture to activity view
@@ -42,21 +57,43 @@ export default function App() {
     return () => clearInterval(interval)
   }, [])
 
+  // Reset running state when the server signals completion or error
+  useEffect(() => {
+    const last = events[events.length - 1]
+    if (!last) return
+    if (last.type === 'demo_completed' || last.type === 'demo_error') {
+      setState((s) => ({ ...s, running: false }))
+    }
+    if (last.type === 'demo_error') {
+      setDemoError((last as { error?: string }).error ?? 'Unknown error')
+    }
+    if (last.type === 'demo_completed') {
+      setDemoError(null)
+    }
+  }, [events])
+
   const handleStateChange = (newState: DemoState) => {
     setState(newState)
-    // Reset logs flag when state changes (act switch resets DB)
+    // Clear logs on act change (act switch resets DB)
     if (newState.act !== state.act) {
       setHasLogs(false)
     }
   }
 
-  // Show architecture diagram when no processing has happened yet
-  const showArchitecture = !hasLogs && !state.running
+  const handleReset = (newState: DemoState) => {
+    setState(newState)
+    setHasLogs(false)  // reset always wipes the DB
+    setDemoError(null)
+  }
+
+  // Act 1 is always the stable overview — architecture + data preview.
+  // Acts 2 and 3 switch to the activity view once processing starts.
+  const showArchitecture = state.act === 1 || (!hasLogs && !state.running)
 
   return (
     <div className="h-screen flex flex-col">
       {/* Top bar */}
-      <DemoControls state={state} onStateChange={handleStateChange} />
+      <DemoControls state={state} onStateChange={handleStateChange} onReset={handleReset} />
 
       {/* Status bar */}
       <div className="px-4 py-1 text-xs flex items-center gap-2 border-b border-gray-900">
@@ -70,7 +107,7 @@ export default function App() {
           <span className="text-blue-400 ml-2 animate-pulse">Processing batch...</span>
         )}
         <div className="flex-1" />
-        {state.act === 3 && state.tenuo_mode === 'cloud' && (
+        {state.act === 3 && state.tenuo_mode === 'cloud' && !demoError && (
           <span className="text-blue-400 mr-2">Cloud mode — receipts streaming to Tenuo Cloud</span>
         )}
         {state.act === 3 && (
@@ -85,15 +122,49 @@ export default function App() {
         )}
       </div>
 
+      {/* Error banner — shown below status bar when a run fails */}
+      {demoError && !state.running && (
+        <div className="px-4 py-2.5 bg-red-950/60 border-b border-red-800/50 flex items-start gap-3">
+          <span className="text-red-400 text-sm mt-0.5 shrink-0">⚠</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-red-300 text-xs">{demoError}</span>
+          </div>
+          <button
+            onClick={() => setDemoError(null)}
+            className="text-red-600 hover:text-red-400 text-xs shrink-0 mt-0.5"
+            title="Dismiss"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main content */}
       {showArchitecture ? (
-        /* Before processing: show architecture + invoice inspector */
+        /* Act 1 / pre-run overview: architecture + full data preview */
         <div className="flex-1 flex overflow-hidden">
           <div className="w-1/2 border-r border-gray-800 overflow-y-auto">
             <ArchitectureDiagram />
           </div>
           <div className="w-1/2 overflow-y-auto">
-            <InvoiceInspector attackEnabled={state.attack_mode !== null} />
+            <InvoiceInspector attackEnabled={false} />
+            <div className="border-t border-gray-800">
+              <DatabaseState act={state.act} />
+            </div>
+            {/* Act 1 call-to-action */}
+            {state.act === 1 && (
+              <div className="p-4 border-t border-gray-800">
+                <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-4 text-xs text-gray-400 space-y-2">
+                  <div className="text-gray-200 font-medium text-sm">Ready to demo</div>
+                  <div>
+                    <span className="text-red-400 font-medium">Act 2 →</span> Select an attack mode and run the batch to see the 4-layer stack approve every step.
+                  </div>
+                  <div>
+                    <span className="text-green-400 font-medium">Act 3 →</span> Add Tenuo to see warrants attenuate in real time and the attack get blocked cryptographically.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -101,20 +172,17 @@ export default function App() {
         <div className="flex-1 flex overflow-hidden">
           {/* Left column: Activity Log */}
           <div className="w-1/2 border-r border-gray-800 flex flex-col">
-            <ToolCallLog events={events} />
+            <ToolCallLog />
           </div>
 
           {/* Right column: Invoice Inspector + Auth + DB state */}
           <div className="w-1/2 overflow-y-auto">
             <InvoiceInspector attackEnabled={state.attack_mode !== null} />
             <div className="border-t border-gray-800">
-              <WarrantChain />
-            </div>
-            <div className="border-t border-gray-800">
               <AuthDecisionPanel />
             </div>
             <div className="border-t border-gray-800">
-              <DatabaseState />
+              <DatabaseState act={state.act} />
             </div>
             <div className="border-t border-gray-800">
               <LatencyComparison />

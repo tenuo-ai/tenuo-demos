@@ -11,6 +11,8 @@ import logging
 import uuid
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 from auth.gcp_sa import check_gcp_sa
 from auth.oauth import check_oauth
 from auth.opa import check_opa
@@ -18,19 +20,20 @@ from auth.spicedb import check_spicedb
 from auth.types import AuthDecision, AuthRequest
 from tools.db import get_pool
 
-logger = logging.getLogger(__name__)
-
 
 async def evaluate_all_layers(
     agent_id: str,
     tool_name: str,
     tool_args: dict[str, Any],
-    request_id: str = "",
+    request_id: str | None = None,
 ) -> list[AuthDecision]:
     """Run all 4 auth layers and return their decisions.
 
     All layers are evaluated regardless of earlier results — we want
     to show the audience every layer's decision for every tool call.
+
+    Pass request_id to share the same ID with a Tenuo layer decision so
+    all layers for a single tool call appear in one row in the dashboard.
     """
     request = AuthRequest(
         agent_id=agent_id,

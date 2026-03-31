@@ -7,7 +7,7 @@ to the attacker's account.
 
 import os
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
@@ -29,7 +29,12 @@ async def payment_executor_agent(state: PaymentExecutorState, config: RunnableCo
     llm_with_tools = llm.bind_tools(PAYMENT_EXECUTOR_TOOLS)
 
     messages = [SystemMessage(content=PAYMENT_EXECUTOR_PROMPT)] + state["messages"]
-    response = await llm_with_tools.ainvoke(messages)
+    try:
+        response = await llm_with_tools.ainvoke(messages)
+    except Exception as e:
+        await log_status("payment-executor",
+                         f"LLM unavailable: {type(e).__name__} — check ANTHROPIC_API_KEY and network")
+        raise
 
     if response.content:
         await log_thinking("payment-executor", response.content, invoice_id=state["invoice_id"])

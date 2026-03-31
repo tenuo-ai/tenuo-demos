@@ -52,22 +52,6 @@ interface InvoiceSummary {
 
 const ATTACKER_ACCOUNT = '8847291034'
 
-function getDenyReason(reason: string | undefined): string {
-  if (reason?.includes('not authorize')) return 'tool not in warrant'
-  if (reason?.includes('bank_account')) return 'bank_account mismatch'
-  return reason || 'denied'
-}
-
-function getDecisionColor(isAllow: boolean, isGenuineDeny: boolean, isTenuo: boolean): string {
-  if (isAllow) {
-    if (isGenuineDeny && !isTenuo) return 'text-green-500'
-    if (isTenuo) return 'text-green-400'
-    return 'text-green-700'
-  }
-  if (isTenuo) return 'text-red-400 font-bold text-base'
-  return 'text-red-500'
-}
-
 export function AuthDecisionPanel() {
   const [summaries, setSummaries] = useState<InvoiceSummary[]>([])
   const [expanded, setExpanded] = useState<string | null>(null)
@@ -107,29 +91,32 @@ export function AuthDecisionPanel() {
         Authorization Decisions
       </h2>
 
+
       <div className="space-y-4">
         {summaries.filter((s) => s.tool_calls.length > 0).map((summary) => {
           const inv = summary.invoice
           const isExpanded = expanded === inv.id
-          // Only mark as attack if update_vendor_bank was attempted on THIS invoice
+          // Only mark as attack if update_vendor_bank was called for THIS invoice.
+          // For the synthetic simulation entry, invoice_id on the tool call is null — match by inv.id.
+          const isSimulation = inv.id === 'simulation'
           const hasAttack = summary.tool_calls.some(
-            (tc) => tc.tool_name === 'update_vendor_bank'
+            (tc) => tc.tool_name === 'update_vendor_bank' &&
+              (isSimulation ? tc.invoice_id === null : tc.invoice_id === inv.id)
           )
-          // Only show "blocked by Tenuo" for actual attack tool denials
-          // (update_vendor_bank denied or bank_account constraint violation)
           const hasTenuoDeny = summary.tool_calls.some(
-            (tc) => tc.layers.tenuo?.decision === 'deny' && (
-              tc.tool_name === 'update_vendor_bank' ||
-              (tc.layers.tenuo?.reason || '').includes('bank_account')
-            )
+            (tc) => tc.layers.tenuo?.decision === 'deny' &&
+              (isSimulation ? tc.invoice_id === null : tc.invoice_id === inv.id)
           )
+          // Only show bank poisoned if this invoice's vendor was the target
           const bankPoisoned = inv.bank_account === ATTACKER_ACCOUNT && inv.vendor_id === 'V-4521'
 
           return (
             <div
               key={inv.id}
               className={`rounded-lg border overflow-hidden ${
-                hasTenuoDeny
+                isSimulation
+                  ? 'border-orange-800 bg-orange-950/10'
+                  : hasTenuoDeny
                   ? 'border-green-800 bg-green-950/10'
                   : hasAttack
                     ? 'border-red-800 bg-red-950/10'
@@ -143,23 +130,30 @@ export function AuthDecisionPanel() {
               >
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-gray-200">{inv.id}</span>
-                    <span className="text-xs text-gray-500">{inv.vendor_name}</span>
-                    {inv.amount ? (
+                    <span className={`text-sm font-medium ${isSimulation ? 'text-orange-300' : 'text-gray-200'}`}>
+                      {isSimulation ? '⚡ Simulated Attack' : inv.id}
+                    </span>
+                    {!isSimulation && <span className="text-xs text-gray-500">{inv.vendor_name}</span>}
+                    {inv.amount != null && (
                       <span className="text-xs text-gray-400">
                         ${inv.amount?.toLocaleString()} {inv.currency}
                       </span>
-                    ) : null}
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    {hasAttack && !hasTenuoDeny && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">
-                        ATTACK SUCCEEDED
+                    {isSimulation && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-900/60 text-orange-300">
+                        LLM BYPASSED — DIRECT CALL
                       </span>
                     )}
-                    {hasTenuoDeny && (
+                    {!isSimulation && hasAttack && !hasTenuoDeny && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">
+                        4/4 ALLOWED · authorization gap
+                      </span>
+                    )}
+                    {!isSimulation && hasTenuoDeny && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900 text-green-300">
-                        ATTACK BLOCKED BY TENUO
+                        BLOCKED · not in task delegation
                       </span>
                     )}
                     {bankPoisoned && (
@@ -216,19 +210,13 @@ export function AuthDecisionPanel() {
                       <tbody>
                         {summary.tool_calls.map((tc) => {
                           const tenuoDeny = tc.layers.tenuo?.decision === 'deny'
-                          // Only highlight as attack if it's genuinely an attack tool or bank violation
-                          const isGenuineDeny = tenuoDeny && (
-                            tc.tool_name === 'update_vendor_bank' ||
-                            (tc.layers.tenuo?.reason || '').includes('bank_account') ||
-                            (tc.layers.tenuo?.reason || '').includes('not authorize')
-                          )
                           const isAttackTool = tc.tool_name === 'update_vendor_bank'
 
                           return (
                             <tr
                               key={tc.request_id}
                               className={`border-b ${
-                                isGenuineDeny
+                                tenuoDeny
                                   ? 'border-red-900/50 bg-red-950/20'
                                   : isAttackTool
                                     ? 'border-yellow-900/30 bg-yellow-950/10'
@@ -237,13 +225,26 @@ export function AuthDecisionPanel() {
                             >
                               <td className="py-1.5">
                                 <span className={`${
-                                  isGenuineDeny ? 'text-red-400' : isAttackTool ? 'text-yellow-400' : 'text-gray-300'
+                                  tenuoDeny ? 'text-red-400' : isAttackTool ? 'text-yellow-400' : 'text-gray-300'
                                 }`}>
                                   {tc.tool_name}
                                 </span>
-                                {isGenuineDeny && (
-                                  <div className="text-[9px] text-red-400/70 mt-0.5">
-                                    {getDenyReason(tc.layers.tenuo?.reason)}
+                                {isAttackTool && !tenuoDeny && !isSimulation && (
+                                  <div className="text-[9px] text-yellow-600/80 mt-0.5">
+                                    correctly authorized · no task scope in standard auth
+                                  </div>
+                                )}
+                                {tenuoDeny && (
+                                  <div className="mt-0.5 space-y-0.5">
+                                    <div className="text-[9px] text-red-400/70">
+                                      {tc.layers.tenuo?.reason?.includes('not authorize')
+                                        ? 'not in task delegation'
+                                        : tc.layers.tenuo?.reason?.includes('bank_account')
+                                          ? 'bank account pinned at delegation time'
+                                          : 'denied'
+                                      }
+                                    </div>
+                                    <div className="text-[9px] text-gray-600">scope set before run · cannot be widened</div>
                                   </div>
                                 )}
                               </td>
@@ -254,7 +255,17 @@ export function AuthDecisionPanel() {
                                 const isTenuo = layer === 'tenuo'
                                 return (
                                   <td key={layer} className="py-1.5 text-center" title={d.reason}>
-                                    <span className={getDecisionColor(isAllow, isGenuineDeny, isTenuo)}>
+                                    <span className={`${
+                                      isAllow
+                                        ? tenuoDeny && !isTenuo
+                                          ? 'text-green-500'
+                                          : isTenuo
+                                            ? 'text-green-400'
+                                            : 'text-green-700'
+                                        : isTenuo
+                                          ? 'text-red-400 font-bold text-base'
+                                          : 'text-red-500'
+                                    }`}>
                                       {isAllow ? '✓' : '✗'}
                                     </span>
                                   </td>

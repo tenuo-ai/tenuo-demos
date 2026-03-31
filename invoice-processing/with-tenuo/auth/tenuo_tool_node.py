@@ -9,14 +9,13 @@ This wraps TenuoToolNode so all enforcement is done by the real SDK.
 The standard auth pipeline runs for display only — it doesn't affect execution.
 """
 
-import json
 import logging
 import time
 from typing import Any
 
 from langchain_core.messages import AIMessage, ToolMessage
 
-from agents.logger import log_tool_call, log_tool_result, log_status
+from agents.logger import log_tool_call, log_tool_result, log_status, log_event
 from auth.pipeline import evaluate_all_layers
 from server.events import publish
 
@@ -40,9 +39,14 @@ class TenuoAuthenticatedToolNode:
         events = []
         tool_calls = last_message.tool_calls
 
-        # Step 1: Run standard auth pipeline for DISPLAY
+        # Step 1: Run standard auth pipeline for DISPLAY, keyed by call_id so all
+        # layers (gcp_sa, oauth, spicedb, opa, tenuo) share one request_id and
+        # appear as a single row in the dashboard — not one row per layer type.
         for tc in tool_calls:
-            decisions = await evaluate_all_layers(self.agent_id, tc["name"], tc["args"], request_id=tc.get("id", ""))
+            call_id = tc.get("id") or "unknown"
+            decisions = await evaluate_all_layers(
+                self.agent_id, tc["name"], tc["args"], request_id=call_id
+            )
             for d in decisions:
                 event = {
                     "type": "auth_decision",
@@ -57,20 +61,25 @@ class TenuoAuthenticatedToolNode:
                 events.append(event)
                 await publish(event)
 
-        # Step 2: Pre-check warrant constraints to measure pure check time
-        # Then delegate to TenuoToolNode for actual enforcement
+        # Authorization latency: ONLY the local warrant parse + constraint check.
+        # This is the authorization decision — pure cryptographic enforcement, no network.
+        # The audit event (emit_for_enforcement inside tenuo_node.ainvoke below) is
+        # fire-and-forget async to Tenuo Cloud and is NOT included in this measurement.
         warrant_b64 = state.get("warrant", "")
         check_latencies: dict[str, int] = {}
         if warrant_b64:
             try:
                 from tenuo_core import Warrant
-                w = Warrant.from_base64(warrant_b64)
                 for tc in tool_calls:
                     start_ns = time.perf_counter_ns()
+                    w = Warrant.from_base64(warrant_b64)
                     w.check_constraints(tc["name"], tc["args"])
                     check_latencies[tc.get("id", "")] = (time.perf_counter_ns() - start_ns) // 1000
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(
+                    "Warrant pre-check failed — Tenuo latency metrics will be 0: %s", e,
+                    exc_info=True,
+                )
 
         result = await self.tenuo_node.ainvoke(state, config)
 
@@ -102,9 +111,10 @@ class TenuoAuthenticatedToolNode:
 
             if is_auth_denied:
                 reason = f"Warrant constraint violation on '{tool_name}'"
-                await log_status(
+                await log_event(
                     self.agent_id,
-                    f"Tenuo DENIED {tool_name}: {msg.content}",
+                    "tenuo_block",
+                    content=f"Blocked: {tool_name} · not in task delegation",
                     tool_name=tool_name,
                 )
             else:
@@ -131,6 +141,7 @@ class TenuoAuthenticatedToolNode:
             # Also write to auth_decisions DB table
             try:
                 from tools.db import get_pool
+                import json
                 pool = await get_pool()
                 await pool.execute(
                     """INSERT INTO auth_decisions
@@ -145,8 +156,8 @@ class TenuoAuthenticatedToolNode:
                     reason,
                     check_us,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to write Tenuo decision to auth_decisions: %s", e)
 
         existing_events = result.get("events", [])
         return {**result, "events": existing_events + events}

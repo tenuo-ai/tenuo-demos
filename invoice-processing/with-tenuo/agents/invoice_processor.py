@@ -11,7 +11,7 @@ subagent gets an even narrower warrant without `update_vendor_bank`.
 
 import os
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END, StateGraph
 
@@ -52,7 +52,13 @@ async def invoice_processor_agent(state: InvoiceProcessorState, config: Runnable
 
     system_prompt = _get_system_prompt(state)
     messages = [SystemMessage(content=system_prompt)] + state["messages"]
-    response = await llm_with_tools.ainvoke(messages)
+    try:
+        response = await llm_with_tools.ainvoke(messages)
+    except Exception as e:
+        await log_status("invoice-processor",
+                         f"LLM unavailable: {type(e).__name__} — check ANTHROPIC_API_KEY and network",
+                         invoice_id=state.get("invoice_id"))
+        raise
 
     # Log LLM reasoning to activity feed
     if response.content:

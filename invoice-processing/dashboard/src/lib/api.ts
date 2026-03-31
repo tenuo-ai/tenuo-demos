@@ -50,11 +50,6 @@ export async function fetchBankChanges() {
   return res.json()
 }
 
-export async function fetchWarrantChain() {
-  const res = await fetch(`${BASE}/api/db/warrant-chain`)
-  return res.json()
-}
-
 export async function fetchInvoiceAuthSummary() {
   const res = await fetch(`${BASE}/api/db/invoice-auth-summary`)
   return res.json()
@@ -63,5 +58,18 @@ export async function fetchInvoiceAuthSummary() {
 export async function fetchAgentLogs(agentId?: string) {
   const params = agentId ? `?agent_id=${agentId}` : ''
   const res = await fetch(`${BASE}/api/db/agent-logs${params}`)
+  return res.json()
+}
+
+export async function fetchWarrantInfo(): Promise<{
+  mode: string
+  warrant: {
+    tools: { name: string; constraints: Record<string, string> }[]
+    holder: string | null
+    expires_at: string | null
+  } | null
+  error?: string
+}> {
+  const res = await fetch(`${BASE}/api/warrant-info`)
   return res.json()
 }
