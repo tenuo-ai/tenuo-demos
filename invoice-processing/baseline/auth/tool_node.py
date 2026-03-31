@@ -33,7 +33,6 @@ class AuthenticatedToolNode:
         self,
         tools: Sequence[BaseTool],
         agent_id: str = "unknown",
-        auth_stack: str = "standard",
     ):
         self.tools_by_name: dict[str, BaseTool] = {t.name: t for t in tools}
         self.agent_id = agent_id

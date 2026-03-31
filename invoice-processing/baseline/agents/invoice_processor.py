@@ -3,10 +3,6 @@
 Processes a single invoice: reads it, verifies vendor, checks PO, approves.
 This is the primary attack target — the invoice notes field may contain
 an injection payload that tricks the agent into updating vendor bank details.
-
-In Tenuo mode, this agent receives an attenuated warrant scoped to the
-specific invoice, vendor, and amount. The Level 3 Vendor Verification
-subagent gets an even narrower warrant without `update_vendor_bank`.
 """
 
 
