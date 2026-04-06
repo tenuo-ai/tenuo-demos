@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h8g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e1b4b"/>
+      <stop offset="100%" style="stop-color:#312e81"/>
+    </linearGradient>
+  </defs>
+  <!-- Gaming headphones -->
+  <!-- Headband - angular -->
+  <path d="M44 115 Q44 38 100 32 Q156 38 156 115" fill="none" stroke="#1e1b4b" stroke-width="8" stroke-linecap="round"/>
+  <!-- RGB accent on headband -->
+  <path d="M68 42 Q100 32 132 42" fill="none" stroke="#818cf8" stroke-width="3" stroke-linecap="round"/>
+  <!-- Left ear cup - large -->
+  <rect x="28" y="98" width="40" height="54" rx="8" fill="url(#h8g)"/>
+  <!-- RGB strip -->
+  <rect x="28" y="110" width="4" height="30" rx="2" fill="#818cf8" opacity="0.8"/>
+  <!-- Right ear cup - large -->
+  <rect x="132" y="98" width="40" height="54" rx="8" fill="url(#h8g)"/>
+  <rect x="168" y="110" width="4" height="30" rx="2" fill="#818cf8" opacity="0.8"/>
+  <!-- Boom mic on left -->
+  <path d="M28 130 Q18 132 14 142" fill="none" stroke="#4c1d95" stroke-width="2.5" stroke-linecap="round"/>
+  <circle cx="14" cy="144" r="3" fill="#818cf8"/>
+</svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h7g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f9a8d4"/>
+      <stop offset="100%" style="stop-color:#ec4899"/>
+    </linearGradient>
+  </defs>
+  <!-- Slim on-ear headphones -->
+  <!-- Headband - thin -->
+  <path d="M56 108 Q56 48 100 42 Q144 48 144 108" fill="none" stroke="url(#h7g)" stroke-width="4" stroke-linecap="round"/>
+  <!-- Left ear cup - compact on-ear -->
+  <ellipse cx="56" cy="120" rx="16" ry="18" fill="url(#h7g)"/>
+  <ellipse cx="56" cy="120" rx="10" ry="12" fill="#be185d" opacity="0.25"/>
+  <!-- Right ear cup - compact on-ear -->
+  <ellipse cx="144" cy="120" rx="16" ry="18" fill="url(#h7g)"/>
+  <ellipse cx="144" cy="120" rx="10" ry="12" fill="#be185d" opacity="0.25"/>
+  <!-- Foldable joints -->
+  <circle cx="56" cy="104" r="3.5" fill="#fce7f3" stroke="#ec4899" stroke-width="1"/>
+  <circle cx="144" cy="104" r="3.5" fill="#fce7f3" stroke="#ec4899" stroke-width="1"/>
+</svg>
