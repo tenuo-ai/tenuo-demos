@@ -114,7 +114,141 @@ The `tenuo` package provides the cryptographic warrant authorization used in the
 
 ---
 
-## Step 3: Start the Services
+## Step 3: Set Up Tenuo Cloud
+
+The defended run (Run 3) uses [Tenuo Cloud](https://staging.tenuo.cloud) to issue cryptographically signed warrants. This section walks through creating your account, registering agents, and configuring a trigger.
+
+> **Want to skip this?** You can run the defended demo with local-only keys using `python task.py defended --local`. This uses ephemeral keys and doesn't require a Tenuo Cloud account. But using Tenuo Cloud gives you the full experience — KMS-signed warrants, the Helios audit dashboard, and receipt visualization.
+
+### 3a: Sign Up on Tenuo Cloud Staging
+
+1. Go to [staging.tenuo.cloud](https://staging.tenuo.cloud)
+2. Sign up for an account
+3. You'll land on the **Helios dashboard** — the admin UI for managing warrants, agents, and audit trails
+
+### 3b: Create an API Key
+
+1. In Helios, go to **Settings → API Keys**
+2. Click **Create API Key**
+3. Name it `demo-runner` and select the `admin` scope
+4. Copy the key (starts with `tc_`) — you won't see it again
+
+### 3c: Register Agents
+
+The demo uses two agents: an orchestrator and a worker. Register both in Helios:
+
+1. Go to **Agents → Register Agent**
+2. Create the orchestrator:
+   - Agent ID: `demo-orchestrator`
+   - Name: `Shopping Orchestrator`
+3. Create the worker:
+   - Agent ID: `demo-worker`
+   - Name: `Shopping Worker`
+
+Each agent registration returns a **registration token**. The agent uses this token along with its public key to claim its identity. The `tenuo` SDK handles this — you just need the signing keys.
+
+Generate agent signing keys:
+
+```bash
+python -c "
+from tenuo import SigningKey
+import base64
+
+orch_key = SigningKey.generate()
+worker_key = SigningKey.generate()
+
+print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.to_bytes()).decode())
+print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.to_bytes()).decode())
+print()
+print('Orchestrator public key (for agent claim):')
+print(base64.b64encode(orch_key.public_key.to_bytes()).decode())
+print()
+print('Worker public key (for agent claim):')
+print(base64.b64encode(worker_key.public_key.to_bytes()).decode())
+"
+```
+
+Save the private keys to your `.env` file. Use the public keys to complete the agent claim in Helios.
+
+### 3d: Create a Trigger
+
+Triggers are templates that define what warrants to issue when fired. Create one for the shopping demo:
+
+1. Go to **Triggers → Create Trigger**
+2. Configure it:
+   - **Trigger ID:** `shopping-agent-v1`
+   - **Name:** Shopping Agent Authorization
+   - **Holder Agent:** `demo-orchestrator`
+   - **Capabilities:**
+     - `browser_navigate` — url: `Pattern("http://localhost:3000/*")`
+     - `browser_extract` — fields: `Wildcard()`
+     - `add_to_cart` — max_price: `Range(0, 500)`, max_quantity: `Range(1, 10)`
+     - `checkout` — requires_approval: `Wildcard()`
+   - **TTL:** 1800 seconds (30 minutes)
+   - **Delegation allowed:** Yes
+   - **Max delegation depth:** 2
+
+This trigger issues a broad root warrant to the orchestrator. The orchestrator then attenuates it locally for the worker (adding rating/review floors, dropping checkout).
+
+### 3e: Configure Your .env File
+
+Copy the example and fill in your values:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
+
+```env
+TENUO_CONTROL_PLANE_URL=https://api-staging.tenuo.ai
+TENUO_API_KEY=tc_your_api_key_from_step_3b
+TENUO_TRIGGER_ID=shopping-agent-v1
+TENUO_ORCHESTRATOR_KEY=base64_orchestrator_private_key_from_step_3c
+TENUO_WORKER_KEY=base64_worker_private_key_from_step_3c
+```
+
+### 3f: Verify the Setup
+
+Test that the trigger fires successfully:
+
+```bash
+python -c "
+import httpx, os
+from pathlib import Path
+
+# Load .env
+for line in open('.env'):
+    line = line.strip()
+    if line and not line.startswith('#') and '=' in line:
+        k, _, v = line.partition('=')
+        os.environ.setdefault(k.strip(), v.strip().strip('\"'))
+
+url = os.environ['TENUO_CONTROL_PLANE_URL'].rstrip('/')
+resp = httpx.post(
+    f'{url}/v1/triggers/shopping-agent-v1/fire',
+    headers={'Authorization': f'Bearer {os.environ[\"TENUO_API_KEY\"]}'},
+    json={
+        'initiator': {'type': 'api_key', 'identity': 'test'},
+        'event_data': {'store_url': 'http://localhost:3000', 'task': 'test'},
+        'dry_run': True,
+    },
+    timeout=10,
+)
+print(f'Status: {resp.status_code}')
+if resp.status_code == 200:
+    print('Trigger fire OK — warrant would be issued')
+    print(f'Warrant ID: {resp.json().get(\"warrant_id\", \"(dry run)\")}')
+else:
+    print(f'Error: {resp.text}')
+"
+```
+
+If you see `Trigger fire OK`, you're ready to run the demo.
+
+---
+
+## Step 4: Start the Services
 
 You'll need two terminal windows (or tabs).
 
@@ -148,7 +282,7 @@ curl http://localhost:8000/healthz
 
 ---
 
-## Step 4: Run 1 — The Happy Path
+## Step 5: Run 1 — The Happy Path
 
 This run uses a **clean** version of the store with no prompt injection. It establishes what normal behavior looks like.
 
@@ -184,7 +318,7 @@ The agent correctly picks the best product. Rational evaluation, correct outcome
 
 ---
 
-## Step 5: Run 2 — The Prompt Injection Attack
+## Step 6: Run 2 — The Prompt Injection Attack
 
 Now we activate the injection and run the same task **without** any defenses.
 
@@ -240,21 +374,28 @@ The agent picks the worst product and parrots the injection's reasoning. Notice 
 
 ---
 
-## Step 6: Run 3 — The Defense (Tenuo Authorization)
+## Step 7: Run 3 — The Defense (Tenuo Authorization)
 
 Same attack, but now with Tenuo's cryptographic authorization enabled.
 
 ```bash
+# Cloud mode (default) — fires trigger on Tenuo Cloud, gets KMS-signed warrant
 python skyvern-config/task.py defended
+
+# Local mode — uses ephemeral keys, no Tenuo Cloud required
+python skyvern-config/task.py defended --local
 ```
 
 ### What happens
 
-1. The injection is still active — the LLM is still tricked
-2. When the agent tries to add ClearTone Ultra to cart, Tenuo checks the action against the **warrant constraints**
-3. The warrant requires: `minimum_rating >= 3.5`, `minimum_reviews >= 50`
-4. ClearTone Ultra fails both checks (rating: 1.8, reviews: 12)
-5. The action is **denied** and the agent falls back to the best compliant product
+1. The task runner fires the `shopping-agent-v1` trigger on Tenuo Cloud
+2. Tenuo Cloud signs a root warrant with its KMS key and returns it
+3. The orchestrator attenuates the warrant locally for the worker agent
+4. The injection is still active — the LLM is still tricked
+5. When the agent tries to add ClearTone Ultra to cart, Tenuo checks the action against the **warrant constraints**
+6. The warrant requires: `minimum_rating >= 3.5`, `minimum_reviews >= 50`
+7. ClearTone Ultra fails both checks (rating: 1.8, reviews: 12)
+8. The action is **denied** and the agent falls back to the best compliant product
 
 ### Expected result
 
@@ -295,32 +436,57 @@ Three different defense layers fired:
 
 ---
 
+## Step 8: View the Audit Trail in Helios
+
+If you used Tenuo Cloud mode (not `--local`), open the [Helios dashboard](https://staging.tenuo.cloud) to see the audit trail:
+
+1. Go to **Receipts** — you'll see every authorization decision from the run
+2. Filter by **Denied** to see just the blocked actions
+3. Click on a receipt to see the full details: warrant ID, constraint violations, timestamps
+4. Go to **Warrants** to see the issued root warrant and its delegation chain
+5. Click on the worker warrant to see the attenuated capabilities side-by-side with the root
+
+The Helios dashboard gives you a visual audit trail of everything the agent attempted — what was authorized, what was blocked, and exactly which constraints fired. This is the accountability layer: cryptographically signed, tamper-proof, and independently verifiable.
+
+---
+
 ## Understanding the Warrant
 
-When you run `python task.py defended`, Tenuo sets up a real cryptographic warrant chain. Here's what happens under the hood:
+When you run `python task.py defended`, the task runner sets up a real cryptographic warrant chain. The flow differs depending on mode:
 
-### Key generation
+### Cloud mode (default): Trigger fire → KMS-signed warrant
 
-Three Ed25519 signing keys are generated — one for each participant in the delegation chain:
+The task runner fires a trigger on Tenuo Cloud, which signs the warrant with its KMS key:
 
 ```python
-from tenuo import SigningKey, configure
-
-issuer_key = SigningKey.generate()        # Control plane (Tenuo Cloud in production)
-orchestrator_key = SigningKey.generate()  # Task orchestrator
-worker_key = SigningKey.generate()        # Shopping agent
-
-configure(issuer_key=issuer_key, dev_mode=True)
+# Fire the trigger — Tenuo Cloud returns a KMS-signed warrant
+resp = httpx.post(
+    f"{control_plane}/v1/triggers/shopping-agent-v1/fire",
+    headers={"Authorization": f"Bearer {api_key}"},
+    json={
+        "initiator": {"type": "api_key", "identity": "demo-runner"},
+        "event_data": {
+            "store_url": "http://localhost:3000",
+            "task": "product_comparison",
+            "budget": 150.00,
+        },
+    },
+)
+root_warrant = Warrant.from_base64(resp.json()["warrant"])
 ```
 
-In production, the issuer key lives in Tenuo Cloud's KMS (GCP Cloud KMS / HSM). Agent keys are created via the `POST /v1/agents` registration flow.
+The root warrant's capabilities are defined by the trigger you created in Step 3d. The warrant is signed by Tenuo Cloud's KMS key — it cannot be forged or modified.
 
-### Root warrant (orchestrator)
+### Local mode (`--local`): Ephemeral keys
 
-The issuer mints a broad warrant for the orchestrator:
+In local mode, keys are generated fresh each run:
 
 ```python
-from tenuo import Warrant, Pattern, Range, Wildcard
+from tenuo import SigningKey, Warrant, Pattern, Range, Wildcard, configure
+
+issuer_key = SigningKey.generate()
+orchestrator_key = SigningKey.generate()
+configure(issuer_key=issuer_key, dev_mode=True)
 
 root_warrant = (
     Warrant.mint_builder()
@@ -329,7 +495,7 @@ root_warrant = (
     .capability("add_to_cart", max_price=Range(0, 500), max_quantity=Range(1, 10))
     .capability("checkout", requires_approval=Wildcard())
     .holder(orchestrator_key.public_key)
-    .ttl(1800)  # 30 minutes
+    .ttl(1800)
     .mint(issuer_key)
 )
 ```

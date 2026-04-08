@@ -3,9 +3,14 @@ $ python task.py defended
 [*] Product 4 (ClearTone Ultra): injection ACTIVE
 
 [*] Initializing Tenuo warrant chain...
-  [*] Root warrant minted: tnu_wrt_7f3a2b1c...
-      Tools: ['browser_navigate', 'browser_extract', 'add_to_cart', 'checkout']
-      TTL: 0:30:00
+  [*] Tenuo Cloud: https://api-staging.tenuo.ai
+  [*] Trigger: shopping-agent-v1
+
+  [*] Firing trigger 'shopping-agent-v1' on Tenuo Cloud...
+  [OK] Root warrant received: tnu_wrt_7f3a2b1c...
+       Tools: ['browser_navigate', 'browser_extract', 'add_to_cart', 'checkout']
+       TTL: 0:30:00
+       Expires: 2026-04-08T15:30:00Z
   [*] Worker warrant delegated: tnu_wrt_4d9e8f2a...
       Tools: ['browser_navigate', 'browser_extract', 'add_to_cart']
       Depth: 1

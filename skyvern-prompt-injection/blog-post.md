@@ -272,35 +272,37 @@ This is the principle of **least privilege**, enforced cryptographically.
 
 ## The Integration
 
-Adding Tenuo authorization to a Skyvern task runner takes a `pip install tenuo` and a few lines of Python. Here's the real code:
+Adding Tenuo authorization to a Skyvern task runner takes a `pip install tenuo` and a few lines of Python. Here's the real code from the demo:
 
-### 1. Mint the root warrant and attenuate for the worker
+### 1. Get a root warrant from Tenuo Cloud
+
+The orchestrator fires a pre-configured trigger on [Tenuo Cloud](https://staging.tenuo.cloud). The trigger defines the capability template; Tenuo Cloud signs the warrant with its KMS key and returns it.
 
 ```python
-from tenuo import (
-    Authorizer, SigningKey, Warrant, Pattern, Range, Wildcard, configure, now,
+import httpx
+from tenuo import Warrant
+
+# Fire trigger on Tenuo Cloud — returns a KMS-signed root warrant
+resp = httpx.post(
+    f"{control_plane_url}/v1/triggers/shopping-agent-v1/fire",
+    headers={"Authorization": f"Bearer {api_key}"},
+    json={
+        "initiator": {"type": "api_key", "identity": "demo-runner"},
+        "event_data": {"store_url": "http://localhost:3000", "task": "product_comparison"},
+    },
 )
+root_warrant = Warrant.from_base64(resp.json()["warrant"])
 
-# Generate keys for issuer, orchestrator, and worker
-issuer_key = SigningKey.generate()
-orchestrator_key = SigningKey.generate()
-worker_key = SigningKey.generate()
+### 2. Attenuate for the worker
 
-configure(issuer_key=issuer_key, dev_mode=True)
+The orchestrator delegates a narrower warrant to the worker. Capabilities can only shrink (monotonic attenuation):
 
-# Mint root warrant (in production: POST /v1/triggers/{id}/fire on Tenuo Cloud)
-root_warrant = (
-    Warrant.mint_builder()
-    .capability("browser_navigate", url=Pattern("http://localhost:3000/*"))
-    .capability("browser_extract", fields=Wildcard())
-    .capability("add_to_cart", max_price=Range(0, 500), max_quantity=Range(1, 10))
-    .capability("checkout", requires_approval=Wildcard())
-    .holder(orchestrator_key.public_key)
-    .ttl(1800)
-    .mint(issuer_key)
-)
+```python
+from tenuo import Pattern, Range, Wildcard, SigningKey
 
-# Attenuate for the worker — capabilities can only shrink
+orchestrator_key = SigningKey.from_env("TENUO_ORCHESTRATOR_KEY")
+worker_key = SigningKey.from_env("TENUO_WORKER_KEY")
+
 worker_warrant = (
     root_warrant.grant_builder()
     .capability("browser_navigate", url=Pattern("http://localhost:3000/products*"))
@@ -318,10 +320,13 @@ worker_warrant = (
 )
 ```
 
-### 2. Authorize actions with Proof-of-Possession
+### 3. Authorize actions with Proof-of-Possession
 
 ```python
-authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
+from tenuo import Authorizer, now
+
+# Trusted root = Tenuo Cloud's public signing key
+authorizer = Authorizer(trusted_roots=[trusted_root_pubkey])
 
 # When the agent tries to add a product to cart:
 args = {"minimum_rating": 1.8, "minimum_reviews": 12, "max_price": 129.99}
@@ -334,7 +339,7 @@ authorizer.authorize_one(worker_warrant, "add_to_cart", args, pop)
 # ^ Raises ConstraintViolation: minimum_rating requires Range(3.5..5.0), got 1.8
 ```
 
-### 3. Diagnostic API — explain why an action was denied
+### 4. Diagnostic API — explain why an action was denied
 
 ```python
 why = worker_warrant.why_denied("add_to_cart", args)
