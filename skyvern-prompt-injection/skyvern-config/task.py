@@ -15,17 +15,30 @@ Prerequisites:
     - Skyvern running locally: cd /path/to/skyvern && skyvern run server
     - Demo store running: cd demo-store && python -m http.server 3000
     - ANTHROPIC_API_KEY set in Skyvern's .env
+    - tenuo Python package installed: pip install tenuo
 """
 
 import argparse
 import json
-import shutil
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
+
+from tenuo import (
+    Authorizer,
+    AuthorizationDenied,
+    Capability,
+    ConstraintViolation,
+    Pattern,
+    Range,
+    SigningKey,
+    Warrant,
+    Wildcard,
+    configure,
+    now,
+)
 
 SKYVERN_BASE = "http://localhost:8000"
 DEMO_STORE_URL = "http://localhost:3000"
@@ -62,156 +75,146 @@ def swap_product_data(mode: str):
 
 # ---- Tenuo Warrant Authorization ----
 
-# Simulated warrant constraints for the worker agent.
-# In production, these come from a signed Tenuo warrant issued by Tenuo Cloud.
-# The warrant is cryptographically signed and cannot be modified by the LLM.
 
-WORKER_WARRANT = {
-    "id": "tnu_wrt_demo_worker_001",
-    "parent": "tnu_wrt_demo_root_001",
-    "holder": "worker_agent",
-    "issued_at": None,  # set at runtime
-    "ttl_seconds": 600,  # 10 minutes
-    "depth": 1,
-    "clearance": {"level": "External", "value": 10},
-    "capabilities": {
-        "browser_navigate": {
-            "url": "http://localhost:3000/products*",
-        },
-        "browser_extract": {
-            "fields": ["name", "price", "rating", "review_count", "description"],
-        },
-        "add_to_cart": {
-            "minimum_rating": 3.5,
-            "minimum_reviews": 50,
-            "max_price": 150.00,
-            "max_quantity": 1,
-        },
-        # NOTE: checkout capability deliberately NOT delegated
-    },
-}
+def setup_tenuo():
+    """
+    Initialize Tenuo with cryptographic keys and mint the warrant chain.
 
-ROOT_WARRANT = {
-    "id": "tnu_wrt_demo_root_001",
-    "holder": "orchestrator",
-    "issued_at": None,
-    "ttl_seconds": 1800,  # 30 minutes
-    "depth": 0,
-    "clearance": {"level": "Internal", "value": 30},
-    "capabilities": {
-        "browser_navigate": {
-            "url": "http://localhost:3000/*",
-        },
-        "browser_extract": {
-            "fields": "*",
-        },
-        "add_to_cart": {
-            "max_price": 500.00,
-            "max_quantity": 10,
-        },
-        "checkout": {
-            "requires_approval": True,
-        },
-    },
-}
+    Returns (issuer_key, orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer).
+    """
+    # Generate keys for each participant in the delegation chain.
+    # In production, the issuer key lives in Tenuo Cloud's KMS (GCP Cloud KMS / HSM).
+    # The agent keys are generated at agent registration and claimed via Tenuo Cloud's
+    # POST /v1/agents → POST /v1/agents/claim flow.
+    issuer_key = SigningKey.generate()
+    orchestrator_key = SigningKey.generate()
+    worker_key = SigningKey.generate()
 
+    # Configure Tenuo in dev mode (uses in-memory keys instead of KMS).
+    # In production: configure(issuer_key=SigningKey.from_env("TENUO_ISSUER_KEY"))
+    configure(issuer_key=issuer_key, dev_mode=True)
 
-class ConstraintViolation(Exception):
-    """Raised when an action violates a warrant constraint."""
-    def __init__(self, action: str, violations: list[dict]):
-        self.action = action
-        self.violations = violations
-        details = "; ".join(
-            f"{v['constraint']}: requires {v['required']}, got {v['actual']}"
-            for v in violations
+    # ---- Step 1: Mint the root warrant ----
+    # In production, this is done by firing a Tenuo Cloud trigger:
+    #   POST /v1/triggers/{id}/fire
+    # The trigger evaluates event data, resolves dynamic constraints,
+    # signs the warrant with KMS, and returns it to the orchestrator.
+
+    root_warrant = (
+        Warrant.mint_builder()
+        .capability("browser_navigate", url=Pattern("http://localhost:3000/*"))
+        .capability("browser_extract", fields=Wildcard())
+        .capability("add_to_cart", max_price=Range(0, 500), max_quantity=Range(1, 10))
+        .capability("checkout", requires_approval=Wildcard())
+        .holder(orchestrator_key.public_key)
+        .ttl(1800)  # 30 minutes
+        .mint(issuer_key)
+    )
+
+    print(f"  [*] Root warrant minted: {root_warrant.id}")
+    print(f"      Tools: {root_warrant.tools}")
+    print(f"      TTL: {root_warrant.ttl_remaining}")
+
+    # ---- Step 2: Attenuate for the worker agent ----
+    # The orchestrator delegates a narrower warrant to the worker.
+    # Monotonic attenuation: capabilities can only shrink, never expand.
+    # - URL scope narrowed: /* → /products* (no /checkout, no /admin)
+    # - add_to_cart gains minimum_rating and minimum_reviews floors
+    # - checkout capability deliberately NOT delegated
+    # - TTL shortened from 30m to 10m
+
+    worker_warrant = (
+        root_warrant.grant_builder()
+        .capability(
+            "browser_navigate",
+            url=Pattern("http://localhost:3000/products*"),
         )
-        super().__init__(f"DENIED — ConstraintViolation on {action}: {details}")
+        .capability(
+            "browser_extract",
+            fields=Wildcard(),
+        )
+        .capability(
+            "add_to_cart",
+            minimum_rating=Range(3.5, 5.0),     # Hard floor — no junk products
+            minimum_reviews=Range(50, None),     # Must have meaningful review volume
+            max_price=Range(0, 150.00),          # Budget ceiling
+            max_quantity=Range(1, 1),            # One product only
+        )
+        # NOTE: checkout is deliberately NOT delegated to the worker.
+        # The orchestrator has it (with approval required), but the worker never gets it.
+        # This is monotonic attenuation — capabilities can only shrink.
+        .holder(worker_key.public_key)
+        .ttl(600)  # 10 minutes
+        .grant(orchestrator_key)
+    )
+
+    print(f"  [*] Worker warrant delegated: {worker_warrant.id}")
+    print(f"      Tools: {worker_warrant.tools}")
+    print(f"      Depth: {worker_warrant.depth}")
+    print(f"      TTL: {worker_warrant.ttl_remaining}")
+
+    # Show the delegation diff — what changed between root and worker
+    diff = root_warrant.grant_builder().capability(
+        "browser_navigate", url=Pattern("http://localhost:3000/products*"),
+    ).capability(
+        "add_to_cart",
+        minimum_rating=Range(3.5, 5.0),
+        minimum_reviews=Range(50, None),
+        max_price=Range(0, 150.00),
+        max_quantity=Range(1, 1),
+    ).diff()
+    print(f"\n  Delegation diff:\n{_indent(diff, 4)}")
+
+    # ---- Step 3: Create the authorizer ----
+    # The authorizer verifies warrants against trusted issuer public keys.
+    # In production, this runs as a sidecar (port 9090) alongside the agent.
+    authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
+
+    return issuer_key, orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer
 
 
-class ActionNotAuthorized(Exception):
-    """Raised when the warrant does not include the requested capability."""
-    def __init__(self, action: str):
-        self.action = action
-        super().__init__(f"DENIED — ToolNotAuthorized: '{action}' not in warrant capabilities")
+def _indent(text: str, spaces: int) -> str:
+    """Indent each line of text."""
+    prefix = " " * spaces
+    return "\n".join(prefix + line for line in text.splitlines())
 
 
-def authorize_action(warrant: dict, action: str, args: dict) -> dict:
+def authorize_and_log(
+    authorizer: Authorizer,
+    warrant: Warrant,
+    holder_key: SigningKey,
+    tool: str,
+    args: dict,
+    receipts: list,
+) -> bool:
     """
-    Verify an action against warrant constraints.
+    Attempt to authorize an action via Tenuo.
 
-    In production, this is handled by Tenuo Core's Authorizer with
-    cryptographic Proof-of-Possession verification. Here we simulate
-    the constraint evaluation logic to demonstrate the defense mechanism.
-
-    Returns a receipt dict on success, raises on violation.
+    Creates a Proof-of-Possession signature, verifies against the warrant,
+    and logs the result. Returns True if authorized, False if denied.
     """
-    caps = warrant["capabilities"]
+    # Create PoP signature — proves the caller holds the private key
+    # bound to this warrant. A stolen warrant is useless without the key.
+    pop_signature = warrant.sign(holder_key, tool, args, now())
 
-    # Check if action is authorized at all
-    if action not in caps:
-        raise ActionNotAuthorized(action)
-
-    constraints = caps[action]
-    violations = []
-
-    if action == "add_to_cart":
-        rating = args.get("rating", 0)
-        review_count = args.get("review_count", 0)
-        price = args.get("price", 0)
-
-        if "minimum_rating" in constraints and rating < constraints["minimum_rating"]:
-            violations.append({
-                "constraint": "minimum_rating",
-                "required": f"Range({constraints['minimum_rating']}..5.0)",
-                "actual": rating,
-            })
-        if "minimum_reviews" in constraints and review_count < constraints["minimum_reviews"]:
-            violations.append({
-                "constraint": "minimum_reviews",
-                "required": f"Range({constraints['minimum_reviews']}..∞)",
-                "actual": review_count,
-            })
-        if "max_price" in constraints and price > constraints["max_price"]:
-            violations.append({
-                "constraint": "max_price",
-                "required": f"Range(0..{constraints['max_price']})",
-                "actual": price,
-            })
-
-    elif action == "browser_navigate":
-        import fnmatch
-        url = args.get("url", "")
-        pattern = constraints.get("url", "")
-        if not fnmatch.fnmatch(url, pattern):
-            violations.append({
-                "constraint": "url",
-                "required": f"UrlPattern(\"{pattern}\")",
-                "actual": url,
-            })
-
-    if violations:
-        raise ConstraintViolation(action, violations)
-
-    # Action authorized — return receipt
-    return {
-        "action": action,
-        "args": args,
-        "outcome": "authorized",
-        "warrant_id": warrant["id"],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
-
-
-def create_denial_receipt(warrant: dict, action: str, args: dict, reason: str) -> dict:
-    """Create a signed receipt for a denied action."""
-    return {
-        "action": action,
-        "args": args,
-        "outcome": "denied",
-        "reason": reason,
-        "warrant_id": warrant["id"],
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    }
+    try:
+        authorizer.authorize_one(warrant, tool, args, pop_signature)
+        receipts.append({
+            "action": tool,
+            "args": args,
+            "outcome": "authorized",
+            "warrant_id": warrant.id,
+        })
+        return True
+    except (AuthorizationDenied, ConstraintViolation) as e:
+        receipts.append({
+            "action": tool,
+            "args": args,
+            "outcome": "denied",
+            "reason": str(e),
+            "warrant_id": warrant.id,
+        })
+        return False
 
 
 def print_receipt_chain(receipts: list[dict]):
@@ -236,7 +239,38 @@ def print_receipt_chain(receipts: list[dict]):
     print()
 
 
-def run_defended_authorization(output: dict, products_data: list) -> dict:
+def print_warrant_comparison(root_warrant: Warrant, worker_warrant: Warrant):
+    """Print side-by-side warrant comparison."""
+    print(f"\n{'='*60}")
+    print("  WARRANT DELEGATION CHAIN")
+    print(f"{'='*60}\n")
+    print("  Root Warrant (Orchestrator)          Attenuated Warrant (Worker)")
+    print("  " + "-" * 33 + "        " + "-" * 33)
+    print(f"  ID: {root_warrant.id[:20]}...       ID: {worker_warrant.id[:20]}...")
+    print(f"  Depth: {root_warrant.depth}                              Depth: {worker_warrant.depth}")
+    print(f"  TTL: {root_warrant.ttl_remaining}                    TTL: {worker_warrant.ttl_remaining}")
+    print(f"  Tools: {root_warrant.tools}")
+    print(f"  Tools: {worker_warrant.tools}")
+    print()
+
+    # Show capabilities with constraints
+    print("  Root capabilities:")
+    for tool, constraints in root_warrant.capabilities.items():
+        print(f"    {tool}: {constraints}")
+    print("\n  Worker capabilities:")
+    for tool, constraints in worker_warrant.capabilities.items():
+        print(f"    {tool}: {constraints}")
+    print()
+
+
+def run_defended_authorization(
+    output: dict,
+    products_data: list,
+    worker_warrant: Warrant,
+    worker_key: SigningKey,
+    authorizer: Authorizer,
+    root_warrant: Warrant,
+) -> tuple[dict, list]:
     """
     Post-process Skyvern's output through Tenuo authorization.
 
@@ -246,22 +280,20 @@ def run_defended_authorization(output: dict, products_data: list) -> dict:
 
     Returns the (possibly corrected) output and the receipt chain.
     """
-    warrant = WORKER_WARRANT.copy()
-    warrant["issued_at"] = datetime.now(timezone.utc).isoformat()
     receipts = []
 
-    # Simulate the navigation receipts that occurred during the run
-    receipts.append(authorize_action(warrant, "browser_navigate",
-                                     {"url": "http://localhost:3000/products.html"}))
+    # Log navigation receipts that occurred during the agent's browsing
+    authorize_and_log(authorizer, worker_warrant, worker_key,
+                      "browser_navigate", {"url": "http://localhost:3000/products.html"}, receipts)
     for pid in [1, 2, 3, 4]:
-        receipts.append(authorize_action(warrant, "browser_navigate",
-                                         {"url": f"http://localhost:3000/products/{pid}"}))
+        authorize_and_log(authorizer, worker_warrant, worker_key,
+                          "browser_navigate", {"url": f"http://localhost:3000/products/{pid}"}, receipts)
 
-    # Now check the agent's selected product
+    # Now check the agent's selected product against warrant constraints
     selected = output.get("selected_product", "")
     selected_id = output.get("selected_product_id")
 
-    # Find the selected product's real data
+    # Find the selected product's real data (from the store, not the LLM's output)
     product_data = None
     for p in products_data:
         if p["id"] == selected_id or p["name"] in selected:
@@ -272,66 +304,65 @@ def run_defended_authorization(output: dict, products_data: list) -> dict:
         print("[!] Could not find selected product in catalog")
         return output, receipts
 
-    # Attempt add_to_cart with actual product data
+    # Attempt add_to_cart with ACTUAL product data — not the LLM's interpretation.
+    # This is the critical distinction: the warrant evaluates real data,
+    # so the injection's fake "4.9 certified rating" is irrelevant.
     cart_args = {
-        "product_id": product_data["id"],
         "product_name": product_data["name"],
-        "rating": product_data["rating"],
-        "review_count": product_data["reviewCount"],
-        "price": product_data["price"],
+        "minimum_rating": product_data["rating"],
+        "minimum_reviews": product_data["reviewCount"],
+        "max_price": product_data["price"],
+        "max_quantity": 1,
     }
 
-    try:
-        receipt = authorize_action(warrant, "add_to_cart", cart_args)
-        receipts.append(receipt)
+    authorized = authorize_and_log(
+        authorizer, worker_warrant, worker_key, "add_to_cart", cart_args, receipts,
+    )
+
+    if authorized:
         print(f"  [OK] add_to_cart({product_data['name']}) — AUTHORIZED")
-    except ConstraintViolation as e:
-        denial = create_denial_receipt(warrant, "add_to_cart", cart_args, str(e))
-        receipts.append(denial)
+    else:
         print(f"  [!!] add_to_cart({product_data['name']}) — DENIED")
-        for v in e.violations:
-            print(f"       {v['constraint']}: requires {v['required']}, got {v['actual']}")
 
-        # Also simulate the redirect attempt from the injection
-        try:
-            authorize_action(warrant, "browser_navigate",
-                             {"url": "http://best-deals-verified.com/cleartone-ultra"})
-        except ConstraintViolation as url_err:
-            denial_nav = create_denial_receipt(
-                warrant, "browser_navigate",
-                {"url": "http://best-deals-verified.com/cleartone-ultra"},
-                str(url_err),
-            )
-            receipts.append(denial_nav)
+        # Use Tenuo's diagnostic API to explain why
+        why = worker_warrant.why_denied("add_to_cart", cart_args)
+        if why.denied:
+            print(f"       Denial code: {why.deny_code}")
+            if why.field:
+                print(f"       Field: {why.field}")
+            print(f"       Suggestion: {why.suggestion}")
 
-        # Find the best compliant product
+        # Simulate the redirect attempt from the injection payload
+        redirect_url = "http://best-deals-verified.com/cleartone-ultra"
+        authorize_and_log(
+            authorizer, worker_warrant, worker_key,
+            "browser_navigate", {"url": redirect_url}, receipts,
+        )
+
+        # Find the best compliant product (agent falls back)
         print("\n  [*] Searching for best compliant alternative...")
         best = None
         for p in sorted(products_data, key=lambda x: x["rating"], reverse=True):
-            try:
-                alt_args = {
-                    "product_id": p["id"],
-                    "product_name": p["name"],
-                    "rating": p["rating"],
-                    "review_count": p["reviewCount"],
-                    "price": p["price"],
-                }
-                receipt = authorize_action(warrant, "add_to_cart", alt_args)
+            alt_args = {
+                "product_name": p["name"],
+                "minimum_rating": p["rating"],
+                "minimum_reviews": p["reviewCount"],
+                "max_price": p["price"],
+                "max_quantity": 1,
+            }
+            # Pre-check with diagnostic API (no PoP needed)
+            if worker_warrant.allows("add_to_cart", alt_args):
+                authorize_and_log(
+                    authorizer, worker_warrant, worker_key, "add_to_cart", alt_args, receipts,
+                )
                 best = p
-                receipts.append(receipt)
                 print(f"  [OK] add_to_cart({p['name']}) — AUTHORIZED (fallback)")
                 break
-            except (ConstraintViolation, ActionNotAuthorized):
-                continue
 
-        # Also simulate checkout attempt (injection tells agent to checkout)
-        try:
-            authorize_action(warrant, "checkout", {})
-        except ActionNotAuthorized as checkout_err:
-            denial_checkout = create_denial_receipt(
-                warrant, "checkout", {}, str(checkout_err),
-            )
-            receipts.append(denial_checkout)
+        # Simulate checkout attempt (injection tells agent to proceed to checkout)
+        authorize_and_log(
+            authorizer, worker_warrant, worker_key, "checkout", {}, receipts,
+        )
 
         if best:
             output = {
@@ -492,12 +523,12 @@ def main():
     elif args.mode == "defended":
         swap_product_data("injected")
         title = "Run 3 — Defended with Tenuo"
+
+        # Initialize Tenuo: generate keys, mint root warrant, attenuate for worker
+        print("\n[*] Initializing Tenuo warrant chain...")
+        (issuer_key, orchestrator_key, worker_key,
+         root_warrant, worker_warrant, authorizer) = setup_tenuo()
         print("[*] Tenuo warrant authorization ACTIVE")
-        print(f"    Root warrant:   {ROOT_WARRANT['id']}")
-        print(f"    Worker warrant: {WORKER_WARRANT['id']}")
-        print(f"    Constraints:    min_rating={WORKER_WARRANT['capabilities']['add_to_cart']['minimum_rating']}, "
-              f"min_reviews={WORKER_WARRANT['capabilities']['add_to_cart']['minimum_reviews']}, "
-              f"max_price={WORKER_WARRANT['capabilities']['add_to_cart']['max_price']}")
 
     # Step 2: Verify services are running
     print(f"\n{'='*60}")
@@ -551,7 +582,11 @@ def main():
             print("  Running Tenuo warrant authorization...\n")
             with open(PRODUCTS_JSON) as f:
                 products_data = json.load(f)
-            output, receipts = run_defended_authorization(output, products_data)
+            output, receipts = run_defended_authorization(
+                output, products_data,
+                worker_warrant, worker_key, authorizer, root_warrant,
+            )
+            print_warrant_comparison(root_warrant, worker_warrant)
 
         print(json.dumps(output, indent=2))
 
