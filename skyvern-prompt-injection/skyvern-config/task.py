@@ -11,15 +11,20 @@ Usage:
     # Run 3 — Defended (injection present, Tenuo active)
     python task.py defended
 
+    # Run 3 with local-only keys (no Tenuo Cloud):
+    python task.py defended --local
+
 Prerequisites:
     - Skyvern running locally: cd /path/to/skyvern && skyvern run server
     - Demo store running: cd demo-store && python -m http.server 3000
     - ANTHROPIC_API_KEY set in Skyvern's .env
     - tenuo Python package installed: pip install tenuo
+    - For cloud mode: .env with TENUO_CONTROL_PLANE_URL, TENUO_API_KEY, etc.
 """
 
 import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -32,6 +37,7 @@ from tenuo import (
     Capability,
     ConstraintViolation,
     Pattern,
+    PublicKey,
     Range,
     SigningKey,
     Warrant,
@@ -43,6 +49,7 @@ from tenuo import (
 SKYVERN_BASE = "http://localhost:8000"
 DEMO_STORE_URL = "http://localhost:3000"
 DEMO_STORE_DIR = Path(__file__).parent.parent / "demo-store"
+ENV_FILE = Path(__file__).parent.parent / ".env"
 
 # ---- Product data swapping ----
 
@@ -76,30 +83,140 @@ def swap_product_data(mode: str):
 # ---- Tenuo Warrant Authorization ----
 
 
-def setup_tenuo():
-    """
-    Initialize Tenuo with cryptographic keys and mint the warrant chain.
+def _load_env():
+    """Load variables from .env file into os.environ."""
+    if not ENV_FILE.exists():
+        return
+    with open(ENV_FILE) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, _, value = line.partition("=")
+                value = value.strip().strip('"').strip("'")
+                os.environ.setdefault(key.strip(), value)
 
-    Returns (issuer_key, orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer).
+
+def setup_tenuo_cloud():
     """
-    # Generate keys for each participant in the delegation chain.
-    # In production, the issuer key lives in Tenuo Cloud's KMS (GCP Cloud KMS / HSM).
-    # The agent keys are generated at agent registration and claimed via Tenuo Cloud's
-    # POST /v1/agents → POST /v1/agents/claim flow.
+    Initialize Tenuo via Tenuo Cloud staging.
+
+    Reads configuration from .env, fires a trigger on Tenuo Cloud to obtain
+    a KMS-signed root warrant, then attenuates it locally for the worker agent.
+
+    Returns (orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer).
+    """
+    _load_env()
+
+    control_plane = os.environ.get("TENUO_CONTROL_PLANE_URL", "").rstrip("/")
+    api_key = os.environ.get("TENUO_API_KEY", "")
+    trigger_id = os.environ.get("TENUO_TRIGGER_ID", "shopping-agent-v1")
+    trusted_root_b64 = os.environ.get("TENUO_TRUSTED_ROOT", "")
+
+    if not control_plane or not api_key:
+        print("[ERROR] Tenuo Cloud not configured.")
+        print("        Set TENUO_CONTROL_PLANE_URL and TENUO_API_KEY in .env")
+        print("        Or use --local for local-only mode.")
+        sys.exit(1)
+
+    # Load agent signing keys.
+    # These were generated during agent registration on Tenuo Cloud
+    # (POST /v1/agents → POST /v1/agents/claim).
+    orchestrator_key = SigningKey.from_env("TENUO_ORCHESTRATOR_KEY")
+    worker_key = SigningKey.from_env("TENUO_WORKER_KEY")
+
+    print(f"  [*] Tenuo Cloud: {control_plane}")
+    print(f"  [*] Trigger: {trigger_id}")
+
+    # ---- Step 1: Fire trigger to obtain root warrant ----
+    # The trigger is pre-configured on Tenuo Cloud (via Helios dashboard or API)
+    # with the shopping agent's capability template. Firing it causes Tenuo Cloud
+    # to sign a warrant with its KMS key and return it.
+    print(f"\n  [*] Firing trigger '{trigger_id}' on Tenuo Cloud...")
+
+    fire_url = f"{control_plane}/v1/triggers/{trigger_id}/fire"
+    resp = httpx.post(
+        fire_url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={
+            "initiator": {
+                "type": "api_key",
+                "identity": "demo-runner",
+            },
+            "event_data": {
+                "store_url": DEMO_STORE_URL,
+                "task": "product_comparison",
+                "budget": 150.00,
+            },
+            "dry_run": False,
+        },
+        timeout=10,
+    )
+
+    if resp.status_code != 200:
+        print(f"  [ERROR] Trigger fire failed: {resp.status_code}")
+        print(f"          {resp.text}")
+        sys.exit(1)
+
+    fire_result = resp.json()
+    warrant_b64 = fire_result.get("warrant", "")
+    warrant_id = fire_result.get("warrant_id", "unknown")
+
+    root_warrant = Warrant.from_base64(warrant_b64)
+
+    print(f"  [OK] Root warrant received: {warrant_id}")
+    print(f"       Tools: {root_warrant.tools}")
+    print(f"       TTL: {root_warrant.ttl_remaining}")
+    print(f"       Expires: {root_warrant.expires_at()}")
+
+    # ---- Step 2: Attenuate for the worker agent ----
+    # The orchestrator narrows the root warrant for the shopping worker.
+    # Monotonic attenuation: capabilities can only shrink, never expand.
+    worker_warrant = _attenuate_for_worker(root_warrant, orchestrator_key, worker_key)
+
+    # ---- Step 3: Create the authorizer ----
+    # Verify warrants against Tenuo Cloud's trusted root public key.
+    if trusted_root_b64:
+        trusted_root = PublicKey.from_bytes(
+            __import__("base64").b64decode(trusted_root_b64)
+        )
+    else:
+        # Fetch from Tenuo Cloud's well-known endpoint
+        print("  [*] Fetching trusted root key from Tenuo Cloud...")
+        tenant_id = os.environ.get("TENUO_TENANT_ID", "")
+        wk_resp = httpx.get(
+            f"{control_plane}/.well-known/tenuo-keys",
+            params={"tenant_id": tenant_id} if tenant_id else {},
+            timeout=5,
+        )
+        trusted_root = PublicKey.from_bytes(
+            __import__("base64").b64decode(wk_resp.json()["keys"][0]["public_key"])
+        )
+
+    authorizer = Authorizer(trusted_roots=[trusted_root])
+
+    return orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer
+
+
+def setup_tenuo_local():
+    """
+    Initialize Tenuo with locally generated keys (no cloud dependency).
+
+    Useful for development or running the demo without a Tenuo Cloud account.
+    Keys are ephemeral — generated fresh each run.
+
+    Returns (orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer).
+    """
     issuer_key = SigningKey.generate()
     orchestrator_key = SigningKey.generate()
     worker_key = SigningKey.generate()
 
-    # Configure Tenuo in dev mode (uses in-memory keys instead of KMS).
-    # In production: configure(issuer_key=SigningKey.from_env("TENUO_ISSUER_KEY"))
     configure(issuer_key=issuer_key, dev_mode=True)
 
-    # ---- Step 1: Mint the root warrant ----
-    # In production, this is done by firing a Tenuo Cloud trigger:
-    #   POST /v1/triggers/{id}/fire
-    # The trigger evaluates event data, resolves dynamic constraints,
-    # signs the warrant with KMS, and returns it to the orchestrator.
+    print("  [*] Mode: local (dev_mode=True, ephemeral keys)")
 
+    # Mint root warrant locally (in cloud mode, this comes from trigger fire)
     root_warrant = (
         Warrant.mint_builder()
         .capability("browser_navigate", url=Pattern("http://localhost:3000/*"))
@@ -107,7 +224,7 @@ def setup_tenuo():
         .capability("add_to_cart", max_price=Range(0, 500), max_quantity=Range(1, 10))
         .capability("checkout", requires_approval=Wildcard())
         .holder(orchestrator_key.public_key)
-        .ttl(1800)  # 30 minutes
+        .ttl(1800)
         .mint(issuer_key)
     )
 
@@ -115,14 +232,28 @@ def setup_tenuo():
     print(f"      Tools: {root_warrant.tools}")
     print(f"      TTL: {root_warrant.ttl_remaining}")
 
-    # ---- Step 2: Attenuate for the worker agent ----
-    # The orchestrator delegates a narrower warrant to the worker.
-    # Monotonic attenuation: capabilities can only shrink, never expand.
-    # - URL scope narrowed: /* → /products* (no /checkout, no /admin)
-    # - add_to_cart gains minimum_rating and minimum_reviews floors
-    # - checkout capability deliberately NOT delegated
-    # - TTL shortened from 30m to 10m
+    # Attenuate for the worker
+    worker_warrant = _attenuate_for_worker(root_warrant, orchestrator_key, worker_key)
 
+    authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
+
+    return orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer
+
+
+def _attenuate_for_worker(
+    root_warrant: Warrant,
+    orchestrator_key: SigningKey,
+    worker_key: SigningKey,
+) -> Warrant:
+    """
+    Attenuate the root warrant for the shopping worker agent.
+
+    Narrows capabilities:
+    - URL scope: /* → /products* (no /checkout, no /admin)
+    - add_to_cart: adds minimum_rating, minimum_reviews floors
+    - checkout: deliberately NOT delegated
+    - TTL: shortened from 30m to 10m
+    """
     worker_warrant = (
         root_warrant.grant_builder()
         .capability(
@@ -140,7 +271,7 @@ def setup_tenuo():
             max_price=Range(0, 150.00),          # Budget ceiling
             max_quantity=Range(1, 1),            # One product only
         )
-        # NOTE: checkout is deliberately NOT delegated to the worker.
+        # checkout is deliberately NOT delegated to the worker.
         # The orchestrator has it (with approval required), but the worker never gets it.
         # This is monotonic attenuation — capabilities can only shrink.
         .holder(worker_key.public_key)
@@ -153,7 +284,7 @@ def setup_tenuo():
     print(f"      Depth: {worker_warrant.depth}")
     print(f"      TTL: {worker_warrant.ttl_remaining}")
 
-    # Show the delegation diff — what changed between root and worker
+    # Show the delegation diff
     diff = root_warrant.grant_builder().capability(
         "browser_navigate", url=Pattern("http://localhost:3000/products*"),
     ).capability(
@@ -165,12 +296,7 @@ def setup_tenuo():
     ).diff()
     print(f"\n  Delegation diff:\n{_indent(diff, 4)}")
 
-    # ---- Step 3: Create the authorizer ----
-    # The authorizer verifies warrants against trusted issuer public keys.
-    # In production, this runs as a sidecar (port 9090) alongside the agent.
-    authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
-
-    return issuer_key, orchestrator_key, worker_key, root_warrant, worker_warrant, authorizer
+    return worker_warrant
 
 
 def _indent(text: str, spaces: int) -> str:
@@ -511,6 +637,11 @@ def main():
         choices=["clean", "attack", "defended"],
         help="Run mode: clean (no injection), attack (injection, no Tenuo), defended (injection + Tenuo)",
     )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Use local dev mode (ephemeral keys, no Tenuo Cloud). Default uses Tenuo Cloud staging.",
+    )
     args = parser.parse_args()
 
     # Step 1: Swap product data based on mode
@@ -524,10 +655,14 @@ def main():
         swap_product_data("injected")
         title = "Run 3 — Defended with Tenuo"
 
-        # Initialize Tenuo: generate keys, mint root warrant, attenuate for worker
+        # Initialize Tenuo warrant chain
         print("\n[*] Initializing Tenuo warrant chain...")
-        (issuer_key, orchestrator_key, worker_key,
-         root_warrant, worker_warrant, authorizer) = setup_tenuo()
+        if args.local:
+            (orchestrator_key, worker_key,
+             root_warrant, worker_warrant, authorizer) = setup_tenuo_local()
+        else:
+            (orchestrator_key, worker_key,
+             root_warrant, worker_warrant, authorizer) = setup_tenuo_cloud()
         print("[*] Tenuo warrant authorization ACTIVE")
 
     # Step 2: Verify services are running
