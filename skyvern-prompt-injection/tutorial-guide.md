@@ -107,8 +107,10 @@ SECONDARY_LLM_KEY="ANTHROPIC_CLAUDE4.5_HAIKU"
 
 ```bash
 cd tenuo-demos/skyvern-prompt-injection
-pip install httpx
+pip install httpx tenuo
 ```
+
+The `tenuo` package provides the cryptographic warrant authorization used in the defended run. It's a PyO3-compiled Rust library — constraint verification runs in ~27 microseconds with no network calls.
 
 ---
 
@@ -295,31 +297,91 @@ Three different defense layers fired:
 
 ## Understanding the Warrant
 
-The worker agent's warrant defines what it's allowed to do:
+When you run `python task.py defended`, Tenuo sets up a real cryptographic warrant chain. Here's what happens under the hood:
 
-```yaml
-capabilities:
-  browser_navigate:
-    url: UrlPattern("http://localhost:3000/products*")
-  add_to_cart:
-    minimum_rating: Range(3.5..5.0)
-    minimum_reviews: Range(50..∞)
-    max_price: Range(0..150.00)
-    max_quantity: Range(1..1)
-  # checkout: NOT DELEGATED
+### Key generation
+
+Three Ed25519 signing keys are generated — one for each participant in the delegation chain:
+
+```python
+from tenuo import SigningKey, configure
+
+issuer_key = SigningKey.generate()        # Control plane (Tenuo Cloud in production)
+orchestrator_key = SigningKey.generate()  # Task orchestrator
+worker_key = SigningKey.generate()        # Shopping agent
+
+configure(issuer_key=issuer_key, dev_mode=True)
 ```
 
-Key points:
+In production, the issuer key lives in Tenuo Cloud's KMS (GCP Cloud KMS / HSM). Agent keys are created via the `POST /v1/agents` registration flow.
+
+### Root warrant (orchestrator)
+
+The issuer mints a broad warrant for the orchestrator:
+
+```python
+from tenuo import Warrant, Pattern, Range, Wildcard
+
+root_warrant = (
+    Warrant.mint_builder()
+    .capability("browser_navigate", url=Pattern("http://localhost:3000/*"))
+    .capability("browser_extract", fields=Wildcard())
+    .capability("add_to_cart", max_price=Range(0, 500), max_quantity=Range(1, 10))
+    .capability("checkout", requires_approval=Wildcard())
+    .holder(orchestrator_key.public_key)
+    .ttl(1800)  # 30 minutes
+    .mint(issuer_key)
+)
+```
+
+### Attenuated warrant (worker)
+
+The orchestrator delegates a narrower warrant to the worker. This is **monotonic attenuation** — capabilities can only shrink, never expand:
+
+```python
+worker_warrant = (
+    root_warrant.grant_builder()
+    .capability("browser_navigate", url=Pattern("http://localhost:3000/products*"))
+    .capability("browser_extract", fields=Wildcard())
+    .capability("add_to_cart",
+        minimum_rating=Range(3.5, 5.0),     # No junk products
+        minimum_reviews=Range(50, None),     # Must have real review volume
+        max_price=Range(0, 150.00),          # Budget ceiling
+        max_quantity=Range(1, 1),            # One product only
+    )
+    # checkout deliberately NOT delegated — worker can't even attempt it
+    .holder(worker_key.public_key)
+    .ttl(600)  # 10 minutes
+    .grant(orchestrator_key)
+)
+```
+
+### Authorization with Proof-of-Possession
+
+When the agent tries to add a product to cart, the warrant is checked with a PoP signature:
+
+```python
+from tenuo import Authorizer, now
+
+authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
+
+args = {"minimum_rating": 1.8, "minimum_reviews": 12, "max_price": 129.99}
+pop = worker_warrant.sign(worker_key, "add_to_cart", args, now())
+authorizer.authorize_one(worker_warrant, "add_to_cart", args, pop)
+# ^ Raises ConstraintViolation — rating 1.8 < 3.5 minimum
+```
+
+### Constraint summary
 
 | Constraint | What it prevents |
 |-----------|-----------------|
-| `minimum_rating: 3.5` | Blocks products with poor ratings (ClearTone Ultra: 1.8) |
-| `minimum_reviews: 50` | Blocks products with insufficient review volume (ClearTone Ultra: 12) |
-| `max_price: 150.00` | Budget ceiling — prevents expensive purchases |
-| `url: /products*` | Blocks navigation to external domains or admin pages |
+| `minimum_rating: Range(3.5, 5.0)` | Blocks products with poor ratings (ClearTone Ultra: 1.8) |
+| `minimum_reviews: Range(50, None)` | Blocks products with insufficient review volume (ClearTone Ultra: 12) |
+| `max_price: Range(0, 150.00)` | Budget ceiling — prevents expensive purchases |
+| `url: Pattern("*/products*")` | Blocks navigation to external domains or admin pages |
 | No `checkout` capability | Worker literally cannot checkout, even if instructed |
 
-These constraints are **cryptographically signed**. The LLM cannot modify, override, or reason around them.
+These constraints are **cryptographically signed** in CBOR format. The LLM cannot modify, override, or reason around them. Verification happens offline in ~27 microseconds.
 
 ---
 
@@ -343,20 +405,35 @@ The critical row: in Run 3, the LLM **was still tricked** — but the outcome wa
 
 ### Changing warrant constraints
 
-Edit the `WORKER_WARRANT` dict in `skyvern-config/task.py`:
+Edit the `setup_tenuo()` function in `skyvern-config/task.py`. The worker warrant's `add_to_cart` capability defines the constraints:
 
 ```python
-WORKER_WARRANT = {
-    "capabilities": {
-        "add_to_cart": {
-            "minimum_rating": 4.0,      # Raise the bar
-            "minimum_reviews": 100,      # Require more reviews
-            "max_price": 100.00,         # Tighter budget
-            "max_quantity": 1,
-        },
-    },
+worker_warrant = (
+    root_warrant.grant_builder()
+    .capability("add_to_cart",
+        minimum_rating=Range(4.0, 5.0),     # Raise the bar
+        minimum_reviews=Range(100, None),    # Require more reviews
+        max_price=Range(0, 100.00),          # Tighter budget
+        max_quantity=Range(1, 1),
+    )
     # ...
-}
+    .grant(orchestrator_key)
+)
+```
+
+You can also use different constraint types from the `tenuo` package:
+
+```python
+from tenuo import Range, Pattern, Exact, OneOf, Wildcard, Regex
+
+# Exact match
+.capability("search", query=Exact("wireless headphones"))
+
+# Enumeration
+.capability("add_to_cart", brand=OneOf(["SoundWave", "AudioMax"]))
+
+# Regex
+.capability("browser_extract", fields=Regex(r"^(name|price|rating)$"))
 ```
 
 ### Adding products
@@ -424,12 +501,35 @@ Make sure you're running `python skyvern-config/task.py defended` (not `attack`)
 
 ---
 
+## Going Further: Tenuo Cloud
+
+This demo uses `dev_mode=True` with in-memory keys. For production deployments, Tenuo Cloud provides:
+
+- **KMS-backed signing** — Warrants signed by GCP Cloud KMS (Ed25519), no key material on disk
+- **Trigger-based issuance** — Define warrant templates, fire triggers from events, get signed warrants back
+- **Helios dashboard** — Visual audit trail showing authorized/denied actions in real-time
+- **Agent registration** — `POST /v1/agents` → claim flow with public key binding
+- **Revocation** — Signed Revocation Lists (SRL) with instant warrant invalidation
+- **Approval workflows** — Multi-level gating for sensitive actions
+
+The `tenuo` Python SDK has built-in integrations for:
+
+| Framework | Import | What it guards |
+|-----------|--------|---------------|
+| OpenAI Agents | `tenuo.openai` | Tool calls via `GuardBuilder` |
+| LangChain | `tenuo.langchain` | Tool execution |
+| LangGraph | `tenuo.langgraph` | `TenuoToolNode` for multi-agent graphs |
+| CrewAI | `tenuo.crewai` | Crew tool protection |
+| FastAPI | `tenuo.fastapi` | API endpoints via `TenuoGuard` |
+| MCP | `tenuo.mcp` | MCP server/client tool verification |
+
 ## Next Steps
 
 - **Read the companion blog post** — [Your AI Agent Just Got Played](blog-post.md) explains the security concepts behind the demo
 - **Explore Tenuo** — [tenuo.io](https://tenuo.io) for the full cryptographic authorization platform
 - **Try different injections** — Modify the payload to test authority impersonation, urgency tactics, or redirect attacks
 - **Integrate with your own agents** — The authorization pattern works with any LLM agent framework, not just Skyvern
+- **Run Tenuo Cloud locally** — `docker compose up` in the tenuo-cloud repo for the full control plane + Helios dashboard
 
 ---
 

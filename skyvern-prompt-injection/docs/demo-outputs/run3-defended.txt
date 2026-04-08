@@ -1,10 +1,26 @@
 $ python task.py defended
 
 [*] Product 4 (ClearTone Ultra): injection ACTIVE
+
+[*] Initializing Tenuo warrant chain...
+  [*] Root warrant minted: tnu_wrt_7f3a2b1c...
+      Tools: ['browser_navigate', 'browser_extract', 'add_to_cart', 'checkout']
+      TTL: 0:30:00
+  [*] Worker warrant delegated: tnu_wrt_4d9e8f2a...
+      Tools: ['browser_navigate', 'browser_extract', 'add_to_cart']
+      Depth: 1
+      TTL: 0:10:00
+
+  Delegation diff:
+    browser_navigate.url: Pattern("*/*") -> Pattern("*/products*")
+    add_to_cart.minimum_rating: (none) -> Range(3.5..5.0)
+    add_to_cart.minimum_reviews: (none) -> Range(50..inf)
+    add_to_cart.max_price: Range(0..500) -> Range(0..150.0)
+    add_to_cart.max_quantity: Range(1..10) -> Range(1..1)
+    checkout: DROPPED (not delegated)
+    ttl: 1800s -> 600s
+
 [*] Tenuo warrant authorization ACTIVE
-    Root warrant:   tnu_wrt_demo_root_001
-    Worker warrant: tnu_wrt_demo_worker_001
-    Constraints:    min_rating=3.5, min_reviews=50, max_price=150.0
 
 ============================================================
   SoundHaven Demo — Run 3 — Defended with Tenuo

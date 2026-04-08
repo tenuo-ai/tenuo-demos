@@ -272,29 +272,79 @@ This is the principle of **least privilege**, enforced cryptographically.
 
 ## The Integration
 
-Adding Tenuo authorization to a Skyvern task runner takes about 50 lines of Python. Here's the core:
+Adding Tenuo authorization to a Skyvern task runner takes a `pip install tenuo` and a few lines of Python. Here's the real code:
+
+### 1. Mint the root warrant and attenuate for the worker
 
 ```python
-from tenuo import Authorizer, ConstraintViolation
+from tenuo import (
+    Authorizer, SigningKey, Warrant, Pattern, Range, Wildcard, configure, now,
+)
 
-async def guarded_execute_action(action, warrant, holder_key):
-    # Build action arguments from actual data (not LLM output)
-    args = extract_action_args(action)
+# Generate keys for issuer, orchestrator, and worker
+issuer_key = SigningKey.generate()
+orchestrator_key = SigningKey.generate()
+worker_key = SigningKey.generate()
 
-    # Create Proof-of-Possession (proves the holder has the private key)
-    pop = holder_key.create_pop(warrant, action.tool_name, args)
+configure(issuer_key=issuer_key, dev_mode=True)
 
-    # Verify against warrant constraints
-    try:
-        authorizer.verify_and_authorize(warrant, action.tool_name, args, pop)
-    except ConstraintViolation as e:
-        log_receipt(action, outcome="denied", reason=str(e))
-        raise ActionDenied(f"Warrant constraint violated: {e}")
+# Mint root warrant (in production: POST /v1/triggers/{id}/fire on Tenuo Cloud)
+root_warrant = (
+    Warrant.mint_builder()
+    .capability("browser_navigate", url=Pattern("http://localhost:3000/*"))
+    .capability("browser_extract", fields=Wildcard())
+    .capability("add_to_cart", max_price=Range(0, 500), max_quantity=Range(1, 10))
+    .capability("checkout", requires_approval=Wildcard())
+    .holder(orchestrator_key.public_key)
+    .ttl(1800)
+    .mint(issuer_key)
+)
 
-    # Authorized — execute and log
-    result = await original_execute_action(action)
-    log_receipt(action, outcome="authorized")
-    return result
+# Attenuate for the worker — capabilities can only shrink
+worker_warrant = (
+    root_warrant.grant_builder()
+    .capability("browser_navigate", url=Pattern("http://localhost:3000/products*"))
+    .capability("browser_extract", fields=Wildcard())
+    .capability("add_to_cart",
+        minimum_rating=Range(3.5, 5.0),
+        minimum_reviews=Range(50, None),
+        max_price=Range(0, 150.00),
+        max_quantity=Range(1, 1),
+    )
+    # checkout deliberately NOT delegated
+    .holder(worker_key.public_key)
+    .ttl(600)
+    .grant(orchestrator_key)
+)
+```
+
+### 2. Authorize actions with Proof-of-Possession
+
+```python
+authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
+
+# When the agent tries to add a product to cart:
+args = {"minimum_rating": 1.8, "minimum_reviews": 12, "max_price": 129.99}
+
+# PoP signature — proves the caller holds the private key bound to this warrant
+pop = worker_warrant.sign(worker_key, "add_to_cart", args, now())
+
+# Authorize — this is where the constraint check happens
+authorizer.authorize_one(worker_warrant, "add_to_cart", args, pop)
+# ^ Raises ConstraintViolation: minimum_rating requires Range(3.5..5.0), got 1.8
+```
+
+### 3. Diagnostic API — explain why an action was denied
+
+```python
+why = worker_warrant.why_denied("add_to_cart", args)
+print(why.deny_code)   # CONSTRAINT_MISMATCH
+print(why.field)        # minimum_rating
+print(why.suggestion)   # "minimum_rating must be in Range(3.5..5.0), got 1.8"
+
+# Pre-check without PoP (diagnostic only, not for authorization decisions)
+worker_warrant.allows("add_to_cart", args)  # False
+worker_warrant.allows("checkout", {})       # False — tool not in warrant
 ```
 
 The authorization check wraps the action handler. Before any browser action executes — navigate, extract, click, input — the warrant is checked. The LLM decides *what* to do; the warrant decides *whether it's allowed*.
