@@ -7,6 +7,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 | Demo | What it shows |
 |------|--------------|
 | [**Invoice Processing**](invoice-processing/) | A multi-agent pipeline processes invoices. A prompt injection redirects a payment to the wrong bank account. Traditional auth (OAuth, RBAC, policy engines) all approve. Tenuo blocks it. |
+| [**Skyvern Prompt Injection**](skyvern-prompt-injection/) | An AI shopping agent browses an e-commerce store. A hidden prompt injection tricks it into buying a terrible product. Tenuo's warrant constraints block the bad purchase — the LLM is compromised but the outcome isn't. |
 
 ## What is Tenuo?
 
