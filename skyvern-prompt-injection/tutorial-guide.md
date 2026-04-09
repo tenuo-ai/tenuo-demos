@@ -113,6 +113,12 @@ The quickstart will walk you through several prompts:
    3. New browser (headless)  – Chrome in background (no window)
    ```
    Choose **option `2` — New browser (headful)**. This opens a visible Chrome window so you can watch the agent navigate the store in real time during the demo runs.
+6. **Email for analytics** → press **Enter** to skip
+7. **Configure the MCP server?** → type `n` (not needed for this demo)
+
+Chromium will then download automatically. Once done, quickstart is complete.
+
+> After quickstart, use `skyvern run server` to start Skyvern (not `docker compose up -d` — that starts a separate Postgres and conflicts with the container quickstart already created).
 
 > **Already have Skyvern installed?** Run `skyvern quickstart` again to reconfigure, or edit `~/.skyvern/.env` directly.
 
@@ -151,8 +157,14 @@ cd tenuo-demos/skyvern-prompt-injection
 
 ### 3a: Sign Up on Tenuo Cloud Staging
 
+Tenuo Cloud staging is invite-only. Use this invitation code when signing up:
+
+```
+TENUO-950c2c2a-9cac71f8-047db44b
+```
+
 1. Go to [staging.tenuo.cloud](https://staging.tenuo.cloud)
-2. Sign up for an account
+2. Sign up — enter the invitation code above when prompted
 3. You'll land on the **Helios dashboard** — the admin UI for managing warrants, agents, and audit trails
 
 ### 3b: Create an API Key
