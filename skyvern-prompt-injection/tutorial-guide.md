@@ -177,19 +177,9 @@ TENUO-950c2c2a-9cac71f8-047db44b
 
 ### 3c: Register Agents
 
-The demo uses two agents: an orchestrator and a worker. Register both in Tenuo Cloud:
+Agent registration is a two-part process: first create the agent identity in the UI (which gives you a one-time registration token), then claim it from the terminal to bind your signing key.
 
-1. In the left sidebar, go to **Infrastructure → Agents**
-2. Create the orchestrator:
-   - Agent ID: `demo-orchestrator`
-   - Name: `Shopping Orchestrator`
-3. Create the worker:
-   - Agent ID: `demo-worker`
-   - Name: `Shopping Worker`
-
-Each agent needs a signing key pair. The public key is registered in Tenuo Cloud; the private key goes in your `.env` and is used to sign Proof-of-Possession assertions when the agent calls authorized tools.
-
-Generate the key pairs now:
+**Part 1 — Generate signing keys (terminal)**
 
 ```bash
 python -c "
@@ -199,20 +189,78 @@ import base64
 orch_key = SigningKey.generate()
 worker_key = SigningKey.generate()
 
+print('=== Paste these into .env ===')
 print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.secret_key_bytes()).decode())
 print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.secret_key_bytes()).decode())
 print()
-print('Orchestrator public key (paste into Tenuo Cloud for demo-orchestrator):')
+print('=== Orchestrator public key ===')
 print(base64.b64encode(orch_key.public_key_bytes()).decode())
 print()
-print('Worker public key (paste into Tenuo Cloud for demo-worker):')
+print('=== Worker public key ===')
 print(base64.b64encode(worker_key.public_key_bytes()).decode())
 "
 ```
 
-For each agent in Tenuo Cloud:
-1. Paste the corresponding **public key** into the **Signing Public Key** field
-2. Click **Save** — the agent is now bound to that key; warrants delegated to it can only be redeemed with the matching private key
+Keep this output open — you'll need the public keys and private keys shortly.
+
+**Part 2 — Create agents in Tenuo Cloud UI**
+
+In the left sidebar go to **Infrastructure → Agents**, click **Register Agent**. Fill in the form for the orchestrator:
+
+- **Agent ID:** `demo-orchestrator`
+- **Description:** `Shopping Orchestrator`
+- **Allowed Triggers:** `shopping-agent-v1`
+- Leave other fields at their defaults
+
+Click **Create Agent** — you'll receive a **one-time registration token** (starts with `tok_`). Copy it immediately.
+
+Repeat for the worker:
+
+- **Agent ID:** `demo-worker`
+- **Description:** `Shopping Worker`
+- **Allowed Triggers:** `shopping-agent-v1`
+
+Copy the worker's registration token too.
+
+**Part 3 — Claim the agents (bind public keys)**
+
+The registration token is a one-time proof that lets the agent bind its signing key. Run this claim script, substituting your tokens and public keys:
+
+```bash
+python -c "
+import httpx, os, base64
+from tenuo import SigningKey
+
+# Load the .env file
+for line in open('.env'):
+    line = line.strip()
+    if line and not line.startswith('#') and '=' in line:
+        k, _, v = line.partition('=')
+        os.environ.setdefault(k.strip(), v.strip())
+
+orch_key = SigningKey.from_bytes(base64.b64decode(os.environ['TENUO_ORCHESTRATOR_KEY']))
+worker_key = SigningKey.from_bytes(base64.b64decode(os.environ['TENUO_WORKER_KEY']))
+control = os.environ['TENUO_CONTROL_PLANE_URL'].rstrip('/')
+
+# Paste your registration tokens from the UI
+ORCH_TOKEN = 'tok_paste_orchestrator_token_here'
+WORKER_TOKEN = 'tok_paste_worker_token_here'
+
+for agent_id, key, token in [
+    ('demo-orchestrator', orch_key, ORCH_TOKEN),
+    ('demo-worker', worker_key, WORKER_TOKEN),
+]:
+    r = httpx.post(f'{control}/v1/agents/claim', json={
+        'agent_id': agent_id,
+        'public_key': base64.b64encode(key.public_key_bytes()).decode(),
+        'registration_token': token,
+    })
+    status = 'OK' if r.status_code == 200 else 'FAILED'
+    print(f'[{status}] {agent_id}: {r.status_code} {r.text[:120]}')
+"
+```
+
+You should see `[OK] demo-orchestrator: 200` and `[OK] demo-worker: 200`. The agents are now active and their public keys are registered — warrants issued to them can only be redeemed by the holder of the matching private key.
 
 ### 3d: Create a Trigger
 
