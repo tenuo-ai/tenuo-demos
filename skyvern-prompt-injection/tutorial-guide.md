@@ -231,27 +231,29 @@ python -c "
 import httpx, base64
 from tenuo import SigningKey
 
-# Paste your private keys from Part 1 output
-ORCH_PRIVATE_KEY = 'paste_TENUO_ORCHESTRATOR_KEY_value_here'
-WORKER_PRIVATE_KEY = 'paste_TENUO_WORKER_KEY_value_here'
+# Paste your values from the steps above
+API_KEY           = 'tc_paste_your_api_key_here'
+ORCH_PRIVATE_KEY  = 'paste_TENUO_ORCHESTRATOR_KEY_value_here'
+WORKER_PRIVATE_KEY= 'paste_TENUO_WORKER_KEY_value_here'
+ORCH_TOKEN        = 'tok_paste_orchestrator_registration_token_here'
+WORKER_TOKEN      = 'tok_paste_worker_registration_token_here'
 
-orch_key = SigningKey.from_bytes(base64.b64decode(ORCH_PRIVATE_KEY))
+orch_key   = SigningKey.from_bytes(base64.b64decode(ORCH_PRIVATE_KEY))
 worker_key = SigningKey.from_bytes(base64.b64decode(WORKER_PRIVATE_KEY))
-control = 'https://api-staging.tenuo.ai'
-
-# Paste your registration tokens from the UI
-ORCH_TOKEN = 'tok_paste_orchestrator_token_here'
-WORKER_TOKEN = 'tok_paste_worker_token_here'
+control    = 'https://api-staging.tenuo.ai'
+headers    = {'Authorization': f'Bearer {API_KEY}'}
 
 for agent_id, key, token in [
-    ('demo-orchestrator', orch_key, ORCH_TOKEN),
-    ('demo-worker', worker_key, WORKER_TOKEN),
+    ('demo-orchestrator', orch_key,   ORCH_TOKEN),
+    ('demo-worker',       worker_key, WORKER_TOKEN),
 ]:
-    r = httpx.post(f'{control}/v1/agents/claim', json={
-        'agent_id': agent_id,
-        'public_key': base64.b64encode(key.public_key_bytes()).decode(),
-        'registration_token': token,
-    })
+    r = httpx.post(f'{control}/v1/agents/claim',
+        headers=headers,
+        json={
+            'agent_id': agent_id,
+            'public_key': base64.b64encode(key.public_key_bytes()).decode(),
+            'registration_token': token,
+        })
     status = 'OK' if r.status_code == 200 else 'FAILED'
     print(f'[{status}] {agent_id}: {r.status_code} {r.text[:120]}')
 "
