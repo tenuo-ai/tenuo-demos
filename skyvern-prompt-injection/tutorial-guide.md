@@ -263,23 +263,38 @@ You should see `[OK] demo-orchestrator: 200` and `[OK] demo-worker: 200`. The ag
 
 ### 3d: Create a Trigger
 
-Triggers are templates that define what warrants to issue when fired. Create one for the shopping demo:
+Triggers are templates that define what warrants to issue when fired. In the left sidebar go to **Integrations → Triggers**, then click **Create Trigger**. The wizard has three steps:
 
-1. In the left sidebar, go to **Integrations → Triggers**, then click **Create Trigger**
-2. Configure it:
-   - **Trigger ID:** `shopping-agent-v1`
-   - **Name:** Shopping Agent Authorization
-   - **Holder Agent:** `demo-orchestrator`
-   - **Capabilities:**
-     - `browser_navigate` — url: `Pattern("http://localhost:3000/*")`
-     - `browser_extract` — fields: `Wildcard()`
-     - `add_to_cart` — max_price: `Range(0, 500)`, max_quantity: `Range(1, 10)`
-     - `checkout` — requires_approval: `Wildcard()`
-   - **TTL:** 1800 seconds (30 minutes)
-   - **Delegation allowed:** Yes
-   - **Max delegation depth:** 2
+**Step 1 — Basics**
 
-This trigger issues a broad root warrant to the orchestrator. The orchestrator then attenuates it locally for the worker (adding rating/review floors, dropping checkout).
+- **Trigger ID:** `shopping-agent-v1`
+- **Name:** `Shopping Agent Authorization`
+- **Holder Agent:** `demo-orchestrator`
+- **TTL:** `1800` (seconds — 30 minutes)
+
+Click **Next**.
+
+**Step 2 — Who Can Fire**
+
+This controls who is allowed to fire this trigger. For the demo, `task.py` fires it using an API key:
+
+- Leave **Allowed Roles**, **Allowed Users**, **Allowed Service Accounts**, and **Allowed Sources** blank
+- Turn on **Allow API Key Authentication**
+
+Click **Next**.
+
+**Step 3 — Warrant Config**
+
+This defines the capabilities the issued warrant will carry. Add the following capabilities (these are the broad permissions given to the orchestrator — the worker gets a narrower subset at runtime):
+
+- `browser_navigate`
+- `browser_extract`
+- `add_to_cart`
+- `checkout`
+
+Click **Create Trigger**.
+
+This trigger issues a root warrant to `demo-orchestrator` when fired. The orchestrator then attenuates it locally for the worker (adding rating/review floors, tightening the budget, and dropping `checkout`).
 
 ### 3e: Configure Your .env File
 
