@@ -153,7 +153,7 @@ Navigate back to the demo directory first (Step 2 moved you to the parent):
 cd tenuo-demos/skyvern-prompt-injection
 ```
 
-> **Want to skip this?** You can run the defended demo with local-only keys using `python task.py defended --local`. This uses ephemeral keys and doesn't require a Tenuo Cloud account. But using Tenuo Cloud gives you the full experience — KMS-signed warrants, the Helios audit dashboard, and receipt visualization.
+> **Want to skip this?** You can run the defended demo with local-only keys using `python task.py defended --local`. This uses ephemeral keys and doesn't require a Tenuo Cloud account. But using Tenuo Cloud gives you the full experience — KMS-signed warrants, an audit dashboard, and receipt visualization.
 
 ### 3a: Sign Up on Tenuo Cloud Staging
 
@@ -165,20 +165,21 @@ TENUO-950c2c2a-9cac71f8-047db44b
 
 1. Go to [staging.tenuo.cloud](https://staging.tenuo.cloud)
 2. Sign up — enter the invitation code above when prompted
-3. You'll land on the **Helios dashboard** — the admin UI for managing warrants, agents, and audit trails
+3. You'll land on the **Tenuo Cloud dashboard** — the admin UI for managing warrants, agents, and audit trails
 
 ### 3b: Create an API Key
 
-1. In Helios, go to **Settings → API Keys**
+1. In the left sidebar, go to **Integrations → API Keys**
 2. Click **Create API Key**
-3. Name it `demo-runner` and select the `admin` scope
-4. Copy the key (starts with `tc_`) — you won't see it again
+3. The wizard asks for a purpose — select **Administrator** (full access to keys, revocations, and settings)
+4. On the Details step, name it `demo-runner`
+5. Complete the wizard and copy the key (starts with `tc_`) — you won't see it again
 
 ### 3c: Register Agents
 
-The demo uses two agents: an orchestrator and a worker. Register both in Helios:
+The demo uses two agents: an orchestrator and a worker. Register both in Tenuo Cloud:
 
-1. Go to **Agents → Register Agent**
+1. In the left sidebar, go to **Infrastructure → Agents**
 2. Create the orchestrator:
    - Agent ID: `demo-orchestrator`
    - Name: `Shopping Orchestrator`
@@ -186,7 +187,7 @@ The demo uses two agents: an orchestrator and a worker. Register both in Helios:
    - Agent ID: `demo-worker`
    - Name: `Shopping Worker`
 
-Each agent needs a signing key pair. The public key is registered in Helios; the private key goes in your `.env` and is used to sign Proof-of-Possession assertions when the agent calls authorized tools.
+Each agent needs a signing key pair. The public key is registered in Tenuo Cloud; the private key goes in your `.env` and is used to sign Proof-of-Possession assertions when the agent calls authorized tools.
 
 Generate the key pairs now:
 
@@ -201,15 +202,15 @@ worker_key = SigningKey.generate()
 print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.to_bytes()).decode())
 print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.to_bytes()).decode())
 print()
-print('Orchestrator public key (paste into Helios for demo-orchestrator):')
+print('Orchestrator public key (paste into Tenuo Cloud for demo-orchestrator):')
 print(base64.b64encode(orch_key.public_key.to_bytes()).decode())
 print()
-print('Worker public key (paste into Helios for demo-worker):')
+print('Worker public key (paste into Tenuo Cloud for demo-worker):')
 print(base64.b64encode(worker_key.public_key.to_bytes()).decode())
 "
 ```
 
-For each agent in Helios:
+For each agent in Tenuo Cloud:
 1. Paste the corresponding **public key** into the **Signing Public Key** field
 2. Click **Save** — the agent is now bound to that key; warrants delegated to it can only be redeemed with the matching private key
 
@@ -217,7 +218,7 @@ For each agent in Helios:
 
 Triggers are templates that define what warrants to issue when fired. Create one for the shopping demo:
 
-1. Go to **Triggers → Create Trigger**
+1. In the left sidebar, go to **Integrations → Triggers**, then click **Create Trigger**
 2. Configure it:
    - **Trigger ID:** `shopping-agent-v1`
    - **Name:** Shopping Agent Authorization
@@ -483,9 +484,9 @@ Three different defense layers fired:
 
 ---
 
-## Step 8: View the Audit Trail in Helios
+## Step 8: View the Audit Trail in Tenuo Cloud
 
-If you used Tenuo Cloud mode (not `--local`), open the [Helios dashboard](https://staging.tenuo.cloud) to see the audit trail:
+If you used Tenuo Cloud mode (not `--local`), open the [Tenuo Cloud dashboard](https://staging.tenuo.cloud) to see the audit trail:
 
 1. Go to **Receipts** — you'll see every authorization decision from the run
 2. Filter by **Denied** to see just the blocked actions
@@ -493,7 +494,7 @@ If you used Tenuo Cloud mode (not `--local`), open the [Helios dashboard](https:
 4. Go to **Warrants** to see the issued root warrant and its delegation chain
 5. Click on the worker warrant to see the attenuated capabilities side-by-side with the root
 
-The Helios dashboard gives you a visual audit trail of everything the agent attempted — what was authorized, what was blocked, and exactly which constraints fired. This is the accountability layer: cryptographically signed, tamper-proof, and independently verifiable.
+The Tenuo Cloud dashboard gives you a visual audit trail of everything the agent attempted — what was authorized, what was blocked, and exactly which constraints fired. This is the accountability layer: cryptographically signed, tamper-proof, and independently verifiable.
 
 ---
 
@@ -738,7 +739,7 @@ You've already used Tenuo Cloud in the main demo flow. Here's what else the plat
 - **Audit export** — Export the full receipt chain as JSON or stream to your SIEM
 - **Multi-tenancy** — Isolate agent namespaces per customer or environment
 
-The `--local` flag (used in `python task.py defended --local`) runs the same cryptographic enforcement but with ephemeral in-process keys — no KMS, no audit trail, no Helios. Useful for unit tests and CI.
+The `--local` flag (used in `python task.py defended --local`) runs the same cryptographic enforcement but with ephemeral in-process keys — no KMS, no audit trail, no dashboard. Useful for unit tests and CI.
 
 The `tenuo` Python SDK has built-in integrations for:
 
@@ -757,7 +758,7 @@ The `tenuo` Python SDK has built-in integrations for:
 - **Explore Tenuo** — [tenuo.ai](https://tenuo.ai) for the full cryptographic authorization platform
 - **Try different injections** — Modify the payload to test authority impersonation, urgency tactics, or redirect attacks
 - **Integrate with your own agents** — The authorization pattern works with any LLM agent framework, not just Skyvern
-- **Run Tenuo Cloud locally** — `docker compose up` in the tenuo-cloud repo for the full control plane + Helios dashboard
+- **Run Tenuo Cloud locally** — `docker compose up` in the tenuo-cloud repo for the full control plane + dashboard
 
 ---
 
