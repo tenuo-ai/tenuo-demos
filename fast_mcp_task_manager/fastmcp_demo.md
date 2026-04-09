@@ -300,3 +300,24 @@ async def scope_break():
 
 The server **rejects** the call. The tool handler **never executes**.
 Same OAuth token, different tool — blocked at the MCP boundary.
+
+---
+
+## Step 6: (Optional) Mint a constrained write warrant
+
+```python
+write_warrant = (
+    Warrant.mint_builder()
+    .capability("create_task", project=Pattern("demo-*"))
+    .holder(agent_key.public_key)
+    .ttl(600)  # 10 min
+    .mint(issuer_key)
+)
+```
+
+- `create_task(title="x", project="demo-app")` → **allowed**
+- `create_task(title="x", project="production")` → **denied** (Pattern
+  mismatch)
+- `delete_task(task_id="1")` → **denied** (not in capabilities)
+
+---
