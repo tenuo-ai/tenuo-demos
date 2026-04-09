@@ -78,10 +78,18 @@ From the parent directory of `tenuo-demos`:
 
 ```bash
 cd ..   # you should now be in the directory containing tenuo-demos/
-pip install skyvern
+pip install skyvern psycopg2-binary
 ```
 
-Run the interactive quickstart — it sets up the database, configures a browser, and walks you through the LLM setup:
+`psycopg2-binary` is the PostgreSQL adapter needed for database migrations — Skyvern doesn't always pull it in automatically.
+
+Before running the quickstart, set the database URL so migrations can find PostgreSQL instead of falling back to SQLite:
+
+```bash
+export DATABASE_STRING="postgresql+psycopg2://skyvern:skyvern@localhost:5432/skyvern"
+```
+
+Now run the interactive quickstart:
 
 ```bash
 skyvern quickstart
@@ -665,18 +673,17 @@ Start the store server:
 cd demo-store && python -m http.server 3000
 ```
 
-### `skyvern quickstart` fails with `sqlite3.OperationalError: unable to open database file`
+### `skyvern quickstart` fails with `sqlite3.OperationalError` or `No module named 'psycopg2'`
 
-This is a known Skyvern bug where the alembic migration loses the PostgreSQL connection string and falls back to SQLite. PostgreSQL was set up successfully — only the migration step failed.
-
-Fix: set the database URL explicitly and retry:
+Both errors stem from the same root cause: alembic can't connect to PostgreSQL during migrations. The full fix:
 
 ```bash
+pip install psycopg2-binary
 export DATABASE_STRING="postgresql+psycopg2://skyvern:skyvern@localhost:5432/skyvern"
 skyvern quickstart
 ```
 
-The PostgreSQL container from the first attempt is still running, so the second run skips the Docker setup and goes straight to migrations. If quickstart still prompts you about Docker, answer `n` — the container is already up.
+If you already ran quickstart once, PostgreSQL is already running — the retry skips Docker setup and goes straight to migrations.
 
 ### "Skyvern is not running at localhost:8080"
 
