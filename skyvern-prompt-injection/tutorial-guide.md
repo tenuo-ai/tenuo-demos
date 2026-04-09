@@ -14,7 +14,8 @@ This guide walks you through setting up and running the SoundHaven prompt inject
 
 Before you start, make sure you have:
 
-- **Python 3.11+** — [python.org/downloads](https://www.python.org/downloads/)
+- **Python 3.11 or 3.12** — [python.org/downloads](https://www.python.org/downloads/) (Skyvern doesn't support 3.13 yet)
+- **Docker Desktop** — for Skyvern's PostgreSQL database
 - **Git** — for cloning repositories
 - **An Anthropic API key** — [console.anthropic.com](https://console.anthropic.com/) (Claude Sonnet is used as the LLM)
 - **~2GB of free disk space** — for Skyvern and its browser dependencies
@@ -28,6 +29,12 @@ git clone https://github.com/tenuo-ai/tenuo-demos.git
 cd tenuo-demos/skyvern-prompt-injection
 ```
 
+Install the demo's Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
 The project structure:
 
 ```
@@ -35,88 +42,84 @@ skyvern-prompt-injection/
 ├── demo-store/              # Static e-commerce site
 │   ├── products.html        # Product listing page
 │   ├── product.html         # Product detail page
-│   ├── cart.html             # Shopping cart
-│   ├── checkout.html         # Checkout page
-│   ├── css/style.css         # Styling
-│   ├── js/store.js           # Store logic
-│   ├── data/products.json    # Product catalog (10 products)
-│   └── images/               # Product SVGs
+│   ├── cart.html            # Shopping cart
+│   ├── checkout.html        # Checkout page
+│   ├── css/style.css        # Styling
+│   ├── js/store.js          # Store logic
+│   ├── data/products.json   # Product catalog (10 products)
+│   └── images/              # Product SVGs
 ├── skyvern-config/
-│   ├── task.py               # Task runner (3 modes)
-│   └── setup-skyvern.sh      # Setup helper
-└── docs/                     # Planning docs and outputs
+│   ├── task.py              # Task runner (3 modes: clean/attack/defended)
+│   └── setup-skyvern.sh     # Skyvern config helper
+├── requirements.txt         # Python dependencies (httpx, tenuo)
+├── .env.example             # Tenuo Cloud config template
+└── docs/                    # Planning docs and demo outputs
 ```
 
 ---
 
 ## Step 2: Install and Configure Skyvern
 
+Skyvern is the AI browser automation platform that will run the shopping agent. We'll install it alongside the demo repo.
+
 ### 2a: Install Skyvern
 
-Skyvern is an open-source browser automation platform. Install it in a sibling directory:
+From the parent directory of `tenuo-demos`:
 
 ```bash
-cd ../..
-git clone https://github.com/Skyvern-AI/skyvern.git
-cd skyvern
-```
-
-Follow Skyvern's installation instructions. The quickest path:
-
-```bash
-# Create a virtual environment
-python -m venv .venv
-source .venv/bin/activate
-
-# Install Skyvern
+cd ..   # you should now be in the directory containing tenuo-demos/
 pip install skyvern
 ```
 
-Or use Docker:
+Run the interactive quickstart — it sets up the database, configures a browser, and walks you through the LLM setup:
 
 ```bash
-docker compose up -d
+skyvern quickstart
 ```
 
-### 2b: Configure the LLM
+The quickstart will:
+1. Start a PostgreSQL container via Docker (make sure Docker Desktop is running)
+2. Run database migrations
+3. Ask which LLM provider to use — select **Anthropic**
+4. Prompt for your Anthropic API key
+5. Install Chromium via Playwright
 
-Skyvern needs an LLM to reason about web pages. We use Anthropic Claude Sonnet.
+When it asks for the LLM model, choose:
+- **Primary:** `ANTHROPIC_CLAUDE4.5_SONNET`
+- **Secondary:** `ANTHROPIC_CLAUDE4.5_HAIKU`
 
-Copy the example environment file and add your API key:
+> **Already have Skyvern installed?** Run `skyvern quickstart` again to reconfigure, or edit `~/.skyvern/.env` directly.
+
+### 2b: Verify Skyvern is Working
+
+Start the Skyvern server briefly to confirm the quickstart completed:
 
 ```bash
-cp .env.example .env
+skyvern run server
 ```
 
-Edit `.env` and set these values:
-
-```env
-ENABLE_ANTHROPIC=true
-ANTHROPIC_API_KEY="sk-ant-your-key-here"
-LLM_KEY="ANTHROPIC_CLAUDE4.5_SONNET"
-SECONDARY_LLM_KEY="ANTHROPIC_CLAUDE4.5_HAIKU"
-```
-
-> **Note:** You can also use our setup helper script:
-> ```bash
-> cd tenuo-demos/skyvern-prompt-injection
-> bash skyvern-config/setup-skyvern.sh
-> ```
-
-### 2c: Install the Task Runner Dependencies
+Check it's healthy:
 
 ```bash
-cd tenuo-demos/skyvern-prompt-injection
-pip install httpx tenuo
+curl http://localhost:8080/healthz
+# → {"status": "ok"}
 ```
 
-The `tenuo` package provides the cryptographic warrant authorization used in the defended run. It's a PyO3-compiled Rust library — constraint verification runs in ~27 microseconds with no network calls.
+You can also open the Skyvern UI at [http://localhost:8080](http://localhost:8080) to see the dashboard.
+
+Once verified, stop the server with **Ctrl+C** — we'll start it alongside the demo store in Step 4.
 
 ---
 
 ## Step 3: Set Up Tenuo Cloud
 
 The defended run (Run 3) uses [Tenuo Cloud](https://staging.tenuo.cloud) to issue cryptographically signed warrants. This section walks through creating your account, registering agents, and configuring a trigger.
+
+Navigate back to the demo directory first (Step 2 moved you to the parent):
+
+```bash
+cd tenuo-demos/skyvern-prompt-injection
+```
 
 > **Want to skip this?** You can run the defended demo with local-only keys using `python task.py defended --local`. This uses ephemeral keys and doesn't require a Tenuo Cloud account. But using Tenuo Cloud gives you the full experience — KMS-signed warrants, the Helios audit dashboard, and receipt visualization.
 
@@ -145,9 +148,9 @@ The demo uses two agents: an orchestrator and a worker. Register both in Helios:
    - Agent ID: `demo-worker`
    - Name: `Shopping Worker`
 
-Each agent registration returns a **registration token**. The agent uses this token along with its public key to claim its identity. The `tenuo` SDK handles this — you just need the signing keys.
+Each agent needs a signing key pair. The public key is registered in Helios; the private key goes in your `.env` and is used to sign Proof-of-Possession assertions when the agent calls authorized tools.
 
-Generate agent signing keys:
+Generate the key pairs now:
 
 ```bash
 python -c "
@@ -160,15 +163,17 @@ worker_key = SigningKey.generate()
 print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.to_bytes()).decode())
 print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.to_bytes()).decode())
 print()
-print('Orchestrator public key (for agent claim):')
+print('Orchestrator public key (paste into Helios for demo-orchestrator):')
 print(base64.b64encode(orch_key.public_key.to_bytes()).decode())
 print()
-print('Worker public key (for agent claim):')
+print('Worker public key (paste into Helios for demo-worker):')
 print(base64.b64encode(worker_key.public_key.to_bytes()).decode())
 "
 ```
 
-Save the private keys to your `.env` file. Use the public keys to complete the agent claim in Helios.
+For each agent in Helios:
+1. Paste the corresponding **public key** into the **Signing Public Key** field
+2. Click **Save** — the agent is now bound to that key; warrants delegated to it can only be redeemed with the matching private key
 
 ### 3d: Create a Trigger
 
@@ -269,8 +274,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to verify th
 
 ### Terminal 2: Start Skyvern
 
+Skyvern is installed as a CLI tool, so you can run it from any directory:
+
 ```bash
-cd skyvern
 skyvern run server
 ```
 
@@ -524,12 +530,15 @@ worker_warrant = (
 
 ### Authorization with Proof-of-Possession
 
-When the agent tries to add a product to cart, the warrant is checked with a PoP signature:
+When the agent tries to add a product to cart, the warrant is checked with a PoP signature. The `Authorizer` verifies the full chain — from issuer root down to the worker warrant — offline in ~27 microseconds:
 
 ```python
 from tenuo import Authorizer, now
 
-authorizer = Authorizer(trusted_roots=[issuer_key.public_key])
+# In cloud mode: trusted_root is Tenuo Cloud's KMS public key
+# (auto-fetched from /.well-known/tenuo-keys if TENUO_TRUSTED_ROOT not set)
+# In local mode: trusted_root is the ephemeral issuer_key.public_key
+authorizer = Authorizer(trusted_roots=[trusted_root_pubkey])
 
 args = {"minimum_rating": 1.8, "minimum_reviews": 12, "max_price": 129.99}
 pop = worker_warrant.sign(worker_key, "add_to_cart", args, now())
@@ -571,7 +580,7 @@ The critical row: in Run 3, the LLM **was still tricked** — but the outcome wa
 
 ### Changing warrant constraints
 
-Edit the `setup_tenuo()` function in `skyvern-config/task.py`. The worker warrant's `add_to_cart` capability defines the constraints:
+Edit `_attenuate_for_worker()` in `skyvern-config/task.py`. The worker warrant's `add_to_cart` capability defines the constraints:
 
 ```python
 worker_warrant = (
@@ -643,12 +652,12 @@ Start the store server:
 cd demo-store && python -m http.server 3000
 ```
 
-### "Skyvern is not running at localhost:8000"
+### "Skyvern is not running at localhost:8080"
 
 Start Skyvern:
 
 ```bash
-cd /path/to/skyvern && skyvern run server
+skyvern run server
 ```
 
 ### Agent times out or fails
@@ -667,16 +676,17 @@ Make sure you're running `python skyvern-config/task.py defended` (not `attack`)
 
 ---
 
-## Going Further: Tenuo Cloud
+## Going Further
 
-This demo uses `dev_mode=True` with in-memory keys. For production deployments, Tenuo Cloud provides:
+You've already used Tenuo Cloud in the main demo flow. Here's what else the platform supports for production deployments:
 
-- **KMS-backed signing** — Warrants signed by GCP Cloud KMS (Ed25519), no key material on disk
-- **Trigger-based issuance** — Define warrant templates, fire triggers from events, get signed warrants back
-- **Helios dashboard** — Visual audit trail showing authorized/denied actions in real-time
-- **Agent registration** — `POST /v1/agents` → claim flow with public key binding
-- **Revocation** — Signed Revocation Lists (SRL) with instant warrant invalidation
-- **Approval workflows** — Multi-level gating for sensitive actions
+- **Revocation** — Signed Revocation Lists (SRL) with instant warrant invalidation across all holders
+- **Approval workflows** — Multi-level gating for sensitive actions (e.g., checkout requires a human reviewer)
+- **Webhook triggers** — Fire warrants from external events (webhooks, scheduled jobs, CI pipelines)
+- **Audit export** — Export the full receipt chain as JSON or stream to your SIEM
+- **Multi-tenancy** — Isolate agent namespaces per customer or environment
+
+The `--local` flag (used in `python task.py defended --local`) runs the same cryptographic enforcement but with ephemeral in-process keys — no KMS, no audit trail, no Helios. Useful for unit tests and CI.
 
 The `tenuo` Python SDK has built-in integrations for:
 
@@ -692,11 +702,11 @@ The `tenuo` Python SDK has built-in integrations for:
 ## Next Steps
 
 - **Read the companion blog post** — [Your AI Agent Just Got Played](blog-post.md) explains the security concepts behind the demo
-- **Explore Tenuo** — [tenuo.io](https://tenuo.io) for the full cryptographic authorization platform
+- **Explore Tenuo** — [tenuo.ai](https://tenuo.ai) for the full cryptographic authorization platform
 - **Try different injections** — Modify the payload to test authority impersonation, urgency tactics, or redirect attacks
 - **Integrate with your own agents** — The authorization pattern works with any LLM agent framework, not just Skyvern
 - **Run Tenuo Cloud locally** — `docker compose up` in the tenuo-cloud repo for the full control plane + Helios dashboard
 
 ---
 
-*Built by [Tenuo](https://tenuo.io). The complete source code is at [github.com/tenuo-ai/tenuo-demos](https://github.com/tenuo-ai/tenuo-demos/tree/main/skyvern-prompt-injection).*
+*Built by [Tenuo](https://tenuo.ai). The complete source code is at [github.com/tenuo-ai/tenuo-demos](https://github.com/tenuo-ai/tenuo-demos/tree/main/skyvern-prompt-injection).*

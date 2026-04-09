@@ -46,7 +46,6 @@ from tenuo import (
     now,
 )
 
-SKYVERN_BASE = "http://localhost:8000"
 DEMO_STORE_URL = "http://localhost:3000"
 DEMO_STORE_DIR = Path(__file__).parent.parent / "demo-store"
 ENV_FILE = Path(__file__).parent.parent / ".env"
@@ -96,6 +95,15 @@ def _load_env():
                 key, _, value = line.partition("=")
                 value = value.strip().strip('"').strip("'")
                 os.environ.setdefault(key.strip(), value)
+
+
+def _skyvern_base() -> str:
+    return os.environ.get("SKYVERN_BASE_URL", "http://localhost:8080").rstrip("/")
+
+
+def _skyvern_headers() -> dict:
+    key = os.environ.get("SKYVERN_API_KEY", "")
+    return {"x-api-key": key} if key else {}
 
 
 def setup_tenuo_cloud():
@@ -595,7 +603,8 @@ def create_task(title: str) -> dict:
     }
 
     resp = httpx.post(
-        f"{SKYVERN_BASE}/run/tasks",
+        f"{_skyvern_base()}/v1/run/tasks",
+        headers=_skyvern_headers(),
         json=payload,
         timeout=30,
     )
@@ -605,7 +614,11 @@ def create_task(title: str) -> dict:
 
 def get_run_status(run_id: str) -> dict:
     """Poll for task completion."""
-    resp = httpx.get(f"{SKYVERN_BASE}/runs/{run_id}", timeout=30)
+    resp = httpx.get(
+        f"{_skyvern_base()}/v1/runs/{run_id}",
+        headers=_skyvern_headers(),
+        timeout=30,
+    )
     resp.raise_for_status()
     return resp.json()
 
@@ -679,11 +692,11 @@ def main():
         sys.exit(1)
 
     try:
-        httpx.get(f"{SKYVERN_BASE}/healthz", timeout=5)
+        httpx.get(f"{_skyvern_base()}/healthz", timeout=5)
         print("[OK] Skyvern is running")
     except httpx.ConnectError:
-        print("[ERROR] Skyvern is not running at localhost:8000")
-        print("        Run: cd /path/to/skyvern && skyvern run server")
+        print(f"[ERROR] Skyvern is not running at {_skyvern_base()}")
+        print("        Run: skyvern run server")
         sys.exit(1)
 
     # Step 3: Create and run the task
