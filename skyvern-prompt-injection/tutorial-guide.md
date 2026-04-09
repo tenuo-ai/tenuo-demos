@@ -228,19 +228,16 @@ The registration token is a one-time proof that lets the agent bind its signing 
 
 ```bash
 python -c "
-import httpx, os, base64
+import httpx, base64
 from tenuo import SigningKey
 
-# Load the .env file
-for line in open('.env'):
-    line = line.strip()
-    if line and not line.startswith('#') and '=' in line:
-        k, _, v = line.partition('=')
-        os.environ.setdefault(k.strip(), v.strip())
+# Paste your private keys from Part 1 output
+ORCH_PRIVATE_KEY = 'paste_TENUO_ORCHESTRATOR_KEY_value_here'
+WORKER_PRIVATE_KEY = 'paste_TENUO_WORKER_KEY_value_here'
 
-orch_key = SigningKey.from_bytes(base64.b64decode(os.environ['TENUO_ORCHESTRATOR_KEY']))
-worker_key = SigningKey.from_bytes(base64.b64decode(os.environ['TENUO_WORKER_KEY']))
-control = os.environ['TENUO_CONTROL_PLANE_URL'].rstrip('/')
+orch_key = SigningKey.from_bytes(base64.b64decode(ORCH_PRIVATE_KEY))
+worker_key = SigningKey.from_bytes(base64.b64decode(WORKER_PRIVATE_KEY))
+control = 'https://api-staging.tenuo.ai'
 
 # Paste your registration tokens from the UI
 ORCH_TOKEN = 'tok_paste_orchestrator_token_here'
