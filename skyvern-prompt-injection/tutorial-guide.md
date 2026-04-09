@@ -29,6 +29,14 @@ git clone https://github.com/tenuo-ai/tenuo-demos.git
 cd tenuo-demos/skyvern-prompt-injection
 ```
 
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate    # macOS/Linux
+# .venv\Scripts\activate     # Windows
+```
+
 Install the demo's Python dependencies:
 
 ```bash
@@ -656,6 +664,19 @@ Start the store server:
 ```bash
 cd demo-store && python -m http.server 3000
 ```
+
+### `skyvern quickstart` fails with `sqlite3.OperationalError: unable to open database file`
+
+This is a known Skyvern bug where the alembic migration loses the PostgreSQL connection string and falls back to SQLite. PostgreSQL was set up successfully — only the migration step failed.
+
+Fix: set the database URL explicitly and retry:
+
+```bash
+export DATABASE_STRING="postgresql+psycopg2://skyvern:skyvern@localhost:5432/skyvern"
+skyvern quickstart
+```
+
+The PostgreSQL container from the first attempt is still running, so the second run skips the Docker setup and goes straight to migrations. If quickstart still prompts you about Docker, answer `n` — the container is already up.
 
 ### "Skyvern is not running at localhost:8080"
 
