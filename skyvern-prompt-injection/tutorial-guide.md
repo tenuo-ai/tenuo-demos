@@ -199,14 +199,14 @@ import base64
 orch_key = SigningKey.generate()
 worker_key = SigningKey.generate()
 
-print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.to_bytes()).decode())
-print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.to_bytes()).decode())
+print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.secret_key_bytes()).decode())
+print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.secret_key_bytes()).decode())
 print()
 print('Orchestrator public key (paste into Tenuo Cloud for demo-orchestrator):')
-print(base64.b64encode(orch_key.public_key.to_bytes()).decode())
+print(base64.b64encode(orch_key.public_key_bytes()).decode())
 print()
 print('Worker public key (paste into Tenuo Cloud for demo-worker):')
-print(base64.b64encode(worker_key.public_key.to_bytes()).decode())
+print(base64.b64encode(worker_key.public_key_bytes()).decode())
 "
 ```
 
