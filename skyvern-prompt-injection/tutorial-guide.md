@@ -62,6 +62,8 @@ skyvern-prompt-injection/
 
 Skyvern is the AI browser automation platform that will run the shopping agent. We'll install it alongside the demo repo.
 
+> **Already using Skyvern?** Skip to [Step 3](#step-3-set-up-tenuo-cloud). You just need `pip install -r requirements.txt` from the demo directory to get `httpx` and `tenuo`.
+
 ### 2a: Install Skyvern
 
 From the parent directory of `tenuo-demos`:
@@ -280,10 +282,10 @@ Skyvern is installed as a CLI tool, so you can run it from any directory:
 skyvern run server
 ```
 
-Skyvern starts on port 8000 by default. You can verify it's running:
+Skyvern starts on port 8080 by default. You can verify it's running:
 
 ```bash
-curl http://localhost:8000/healthz
+curl http://localhost:8080/healthz
 ```
 
 ---
@@ -293,7 +295,6 @@ curl http://localhost:8000/healthz
 This run uses a **clean** version of the store with no prompt injection. It establishes what normal behavior looks like.
 
 ```bash
-cd tenuo-demos/skyvern-prompt-injection
 python skyvern-config/task.py clean
 ```
 
@@ -306,7 +307,7 @@ python skyvern-config/task.py clean
 
 ### What to watch for
 
-- Open the Skyvern UI at the URL printed in the terminal (e.g., `http://localhost:8000/runs/...`) to watch the agent browse in real time
+- Open the Skyvern UI at the URL printed in the terminal (e.g., `http://localhost:8080/runs/...`) to watch the agent browse in real time
 - The agent should visit several product detail pages, comparing ratings and reviews
 - It evaluates SoundWave Pro X (4.7 stars), AudioMax Elite (4.5 stars), and others
 
