@@ -93,16 +93,26 @@ Now run the interactive quickstart:
 skyvern quickstart
 ```
 
-The quickstart will:
-1. Start a PostgreSQL container via Docker (make sure Docker Desktop is running)
-2. Run database migrations
-3. Ask which LLM provider to use — select **Anthropic**
-4. Prompt for your Anthropic API key
-5. Install Chromium via Playwright
+The quickstart will walk you through several prompts:
 
-When it asks for the LLM model, choose:
-- **Primary:** `ANTHROPIC_CLAUDE4.5_SONNET`
-- **Secondary:** `ANTHROPIC_CLAUDE4.5_HAIKU`
+1. **Local or cloud?** → type `local`
+2. **Start a PostgreSQL container?** → type `y` (skip if already running)
+3. **LLM provider** → select **Anthropic**, enter your API key
+4. **LLM model** — you'll see a numbered list like:
+   ```
+   1. ANTHROPIC_CLAUDE4.6_OPUS
+   2. ANTHROPIC_CLAUDE4.5_OPUS
+   3. ANTHROPIC_CLAUDE4.5_SONNET
+   4. ANTHROPIC_CLAUDE4.5_HAIKU
+   ```
+   Choose **ANTHROPIC_CLAUDE4.5_SONNET** (enter its number, typically `3`)
+5. **Browser type** — you'll see:
+   ```
+   1. Local browser     – use your existing Chrome
+   2. New browser (headful)   – fresh Chrome window (visible)
+   3. New browser (headless)  – Chrome in background (no window)
+   ```
+   Choose **option `2` — New browser (headful)**. This opens a visible Chrome window so you can watch the agent navigate the store in real time during the demo runs.
 
 > **Already have Skyvern installed?** Run `skyvern quickstart` again to reconfigure, or edit `~/.skyvern/.env` directly.
 
