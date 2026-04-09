@@ -15,7 +15,7 @@ Usage:
     python task.py defended --local
 
 Prerequisites:
-    - Skyvern running locally: cd /path/to/skyvern && skyvern run server
+    - Skyvern running locally: skyvern run server
     - Demo store running: cd demo-store && python -m http.server 3000
     - ANTHROPIC_API_KEY set in Skyvern's .env
     - tenuo Python package installed: pip install tenuo

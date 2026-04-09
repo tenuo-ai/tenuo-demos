@@ -205,7 +205,7 @@ Copy the example and fill in your values:
 cp .env.example .env
 ```
 
-Edit `.env`:
+Edit `.env` and fill in the required fields:
 
 ```env
 TENUO_CONTROL_PLANE_URL=https://api-staging.tenuo.ai
@@ -214,6 +214,8 @@ TENUO_TRIGGER_ID=shopping-agent-v1
 TENUO_ORCHESTRATOR_KEY=base64_orchestrator_private_key_from_step_3c
 TENUO_WORKER_KEY=base64_worker_private_key_from_step_3c
 ```
+
+The remaining fields (`TENUO_TRUSTED_ROOT`, `TENUO_TENANT_ID`) can be left blank — the task runner auto-fetches the trusted root key from Tenuo Cloud's `/.well-known/tenuo-keys` endpoint if `TENUO_TRUSTED_ROOT` is not set.
 
 ### 3f: Verify the Setup
 
@@ -257,12 +259,14 @@ If you see `Trigger fire OK`, you're ready to run the demo.
 
 ## Step 4: Start the Services
 
-You'll need two terminal windows (or tabs).
+You'll need **two additional terminal windows** for the long-running services. Keep your current terminal open — you'll use it to run the demo tasks in Steps 5-7.
 
 ### Terminal 1: Start the Demo Store
 
+From the `skyvern-prompt-injection/` directory (adjust to where you cloned):
+
 ```bash
-cd tenuo-demos/skyvern-prompt-injection/demo-store
+cd ~/tenuo-demos/skyvern-prompt-injection/demo-store
 python -m http.server 3000
 ```
 
