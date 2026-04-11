@@ -287,7 +287,7 @@ resp = httpx.post(
     f"{control_plane_url}/v1/triggers/shopping-agent-v1/fire",
     headers={"Authorization": f"Bearer {api_key}"},
     json={
-        "initiator": {"type": "api_key", "identity": "demo-runner"},
+        "initiator": {"type": "api_key", "identity": "sa:demo-runner"},
         "event_data": {"store_url": "http://localhost:3000", "task": "product_comparison"},
     },
 )

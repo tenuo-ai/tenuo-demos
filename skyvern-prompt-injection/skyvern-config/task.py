@@ -98,7 +98,7 @@ def _load_env():
 
 
 def _skyvern_base() -> str:
-    return os.environ.get("SKYVERN_BASE_URL", "http://localhost:8080").rstrip("/")
+    return os.environ.get("SKYVERN_BASE_URL", "http://localhost:8000").rstrip("/")
 
 
 def _skyvern_headers() -> dict:
@@ -150,7 +150,7 @@ def setup_tenuo_cloud():
         json={
             "initiator": {
                 "type": "api_key",
-                "identity": "demo-runner",
+                "identity": "sa:demo-runner",
             },
             "event_data": {
                 "store_url": DEMO_STORE_URL,
@@ -608,6 +608,9 @@ def create_task(title: str) -> dict:
         json=payload,
         timeout=30,
     )
+    if resp.status_code != 200:
+        print(f"[ERROR] Task creation failed: {resp.status_code}")
+        print(f"        {resp.text}")
     resp.raise_for_status()
     return resp.json()
 
@@ -692,7 +695,7 @@ def main():
         sys.exit(1)
 
     try:
-        httpx.get(f"{_skyvern_base()}/healthz", timeout=5)
+        httpx.get(f"{_skyvern_base()}/api/v1/heartbeat", timeout=5)
         print("[OK] Skyvern is running")
     except httpx.ConnectError:
         print(f"[ERROR] Skyvern is not running at {_skyvern_base()}")

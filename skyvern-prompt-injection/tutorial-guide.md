@@ -133,11 +133,9 @@ skyvern run server
 Check it's healthy:
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8000/api/v1/heartbeat
 # → {"status": "ok"}
 ```
-
-You can also open the Skyvern UI at [http://localhost:8080](http://localhost:8080) to see the dashboard.
 
 Once verified, stop the server with **Ctrl+C** — we'll start it alongside the demo store in Step 4.
 
@@ -189,7 +187,7 @@ import base64
 orch_key = SigningKey.generate()
 worker_key = SigningKey.generate()
 
-print('=== Paste these into .env ===')
+print('=== Paste these into .env  these are private keys ===')
 print('TENUO_ORCHESTRATOR_KEY=' + base64.b64encode(orch_key.secret_key_bytes()).decode())
 print('TENUO_WORKER_KEY=' + base64.b64encode(worker_key.secret_key_bytes()).decode())
 print()
@@ -243,8 +241,9 @@ worker_key = SigningKey.from_bytes(base64.b64decode(WORKER_PRIVATE_KEY))
 control    = 'https://api-staging.tenuo.ai'
 headers    = {'Authorization': f'Bearer {API_KEY}'}
 
+# replace with the names of your agents
 for agent_id, key, token in [
-    ('demo-orchestrator', orch_key,   ORCH_TOKEN),
+    ('demo-orchestrator', orch_key,   ORCH_TOKEN), 
     ('demo-worker',       worker_key, WORKER_TOKEN),
 ]:
     r = httpx.post(f'{control}/v1/agents/claim',
@@ -269,30 +268,33 @@ Triggers are templates that define what warrants to issue when fired. In the lef
 
 - **Trigger ID:** `shopping-agent-v1`
 - **Name:** `Shopping Agent Authorization`
-- **Holder Agent:** `demo-orchestrator`
-- **TTL:** `1800` (seconds — 30 minutes)
 
 Click **Next**.
 
 **Step 2 — Who Can Fire**
 
-This controls who is allowed to fire this trigger. For the demo, `task.py` fires it using an API key:
+This controls who is allowed to fire this trigger. For the demo, `task.py` fires it using an API key with a service account identity:
 
-- Leave **Allowed Roles**, **Allowed Users**, **Allowed Service Accounts**, and **Allowed Sources** blank
+- Under **Allowed Service Accounts**, enter `demo-runner`
 - Turn on **Allow API Key Authentication**
+- Leave **Allowed Roles**, **Allowed Users**, and **Allowed Sources** blank
 
 Click **Next**.
 
 **Step 3 — Warrant Config**
 
-This defines the capabilities the issued warrant will carry. Add the following capabilities (these are the broad permissions given to the orchestrator — the worker gets a narrower subset at runtime):
+This defines what the issued warrant authorizes. Fill in the fields:
 
-- `browser_navigate`
-- `browser_extract`
-- `add_to_cart`
-- `checkout`
+- **Holder Agent:** select `demo-orchestrator` from the dropdown
+- **Actions** (comma-separated): `browser_navigate, browser_extract, add_to_cart, checkout`
+- **TTL:** `30 minutes` (from the dropdown)
+- **Max Depth:** leave at `2`, leave **Delegation** enabled
+- **Global Constraints:** leave empty
+- **Per-Action Constraints:** leave empty
+- **Dynamic Bindings:** leave as `{}`
+- **Approval Gates:** leave as-is
 
-Click **Create Trigger**.
+Before clicking **Create Trigger**, check the **Readiness** section at the bottom. All items should be green. If you see **"Initiator policy is not broad/open"** in orange, go back to Step 2 and make sure **Allowed Service Accounts** includes `demo-runner`.
 
 This trigger issues a root warrant to `demo-orchestrator` when fired. The orchestrator then attenuates it locally for the worker (adding rating/review floors, tightening the budget, and dropping `checkout`).
 
@@ -337,9 +339,8 @@ resp = httpx.post(
     f'{url}/v1/triggers/shopping-agent-v1/fire',
     headers={'Authorization': f'Bearer {os.environ[\"TENUO_API_KEY\"]}'},
     json={
-        'initiator': {'type': 'api_key', 'identity': 'test'},
+        'initiator': {'type': 'api_key', 'identity': 'sa:demo-runner'},
         'event_data': {'store_url': 'http://localhost:3000', 'task': 'test'},
-        'dry_run': True,
     },
     timeout=10,
 )
@@ -382,13 +383,15 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to verify th
 Skyvern is installed as a CLI tool, so you can run it from any directory:
 
 ```bash
-skyvern run server
+ALLOWED_HOSTS='["localhost"]' skyvern run server
 ```
 
-Skyvern starts on port 8080 by default. You can verify it's running:
+> **Why `ALLOWED_HOSTS`?** Skyvern blocks localhost and private IPs by default (SSRF protection). Since the demo store runs on `localhost:3000`, we need to explicitly allow it.
+
+Skyvern starts on port 8000 by default. You can verify it's running:
 
 ```bash
-curl http://localhost:8080/healthz
+curl http://localhost:8000/api/v1/heartbeat
 ```
 
 ---
@@ -410,7 +413,7 @@ python skyvern-config/task.py clean
 
 ### What to watch for
 
-- Open the Skyvern UI at the URL printed in the terminal (e.g., `http://localhost:8080/runs/...`) to watch the agent browse in real time
+- Open the Skyvern UI at the URL printed in the terminal (e.g., `http://localhost:8000/runs/...`) to watch the agent browse in real time
 - The agent should visit several product detail pages, comparing ratings and reviews
 - It evaluates SoundWave Pro X (4.7 stars), AudioMax Elite (4.5 stars), and others
 
@@ -574,7 +577,7 @@ resp = httpx.post(
     f"{control_plane}/v1/triggers/shopping-agent-v1/fire",
     headers={"Authorization": f"Bearer {api_key}"},
     json={
-        "initiator": {"type": "api_key", "identity": "demo-runner"},
+        "initiator": {"type": "api_key", "identity": "sa:demo-runner"},
         "event_data": {
             "store_url": "http://localhost:3000",
             "task": "product_comparison",
@@ -767,7 +770,7 @@ skyvern quickstart
 
 `asyncpg` is already installed with Skyvern. If you already ran quickstart once, the PostgreSQL container is still running — the retry skips Docker setup and goes straight to migrations.
 
-### "Skyvern is not running at localhost:8080"
+### "Skyvern is not running at localhost:8000"
 
 Start Skyvern:
 
