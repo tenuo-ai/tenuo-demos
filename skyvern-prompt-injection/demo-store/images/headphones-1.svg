@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h1g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4f46e5"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+  </defs>
+  <!-- Headband -->
+  <path d="M50 110 Q50 40 100 35 Q150 40 150 110" fill="none" stroke="url(#h1g)" stroke-width="8" stroke-linecap="round"/>
+  <!-- Left ear cup -->
+  <rect x="34" y="100" width="36" height="52" rx="12" fill="url(#h1g)"/>
+  <rect x="40" y="108" width="24" height="18" rx="6" fill="#312e81" opacity="0.4"/>
+  <!-- Right ear cup -->
+  <rect x="130" y="100" width="36" height="52" rx="12" fill="url(#h1g)"/>
+  <rect x="136" y="108" width="24" height="18" rx="6" fill="#312e81" opacity="0.4"/>
+  <!-- Cushion detail -->
+  <ellipse cx="52" cy="126" rx="12" ry="18" fill="#6366f1" opacity="0.3"/>
+  <ellipse cx="148" cy="126" rx="12" ry="18" fill="#6366f1" opacity="0.3"/>
+  <!-- ANC indicator -->
+  <circle cx="52" cy="140" r="3" fill="#10b981"/>
+</svg>

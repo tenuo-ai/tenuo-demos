@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h6g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#78716c"/>
+      <stop offset="100%" style="stop-color:#57534e"/>
+    </linearGradient>
+  </defs>
+  <!-- Open-back studio headphones -->
+  <!-- Headband - spring steel look -->
+  <path d="M48 108 Q48 36 100 30 Q152 36 152 108" fill="none" stroke="#a8a29e" stroke-width="5" stroke-linecap="round"/>
+  <path d="M70 38 Q100 30 130 38" fill="none" stroke="#d6d3d1" stroke-width="8" stroke-linecap="round"/>
+  <!-- Left ear cup - open back mesh -->
+  <circle cx="48" cy="126" r="26" fill="url(#h6g)"/>
+  <circle cx="48" cy="126" r="18" fill="none" stroke="#44403c" stroke-width="1"/>
+  <line x1="36" y1="118" x2="60" y2="118" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="36" y1="122" x2="60" y2="122" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="36" y1="126" x2="60" y2="126" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="36" y1="130" x2="60" y2="130" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="36" y1="134" x2="60" y2="134" stroke="#44403c" stroke-width="0.8"/>
+  <!-- Right ear cup - open back mesh -->
+  <circle cx="152" cy="126" r="26" fill="url(#h6g)"/>
+  <circle cx="152" cy="126" r="18" fill="none" stroke="#44403c" stroke-width="1"/>
+  <line x1="140" y1="118" x2="164" y2="118" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="140" y1="122" x2="164" y2="122" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="140" y1="126" x2="164" y2="126" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="140" y1="130" x2="164" y2="130" stroke="#44403c" stroke-width="0.8"/>
+  <line x1="140" y1="134" x2="164" y2="134" stroke="#44403c" stroke-width="0.8"/>
+  <!-- Cable -->
+  <path d="M48 152 Q48 168 56 172" fill="none" stroke="#a8a29e" stroke-width="2" stroke-linecap="round"/>
+</svg>

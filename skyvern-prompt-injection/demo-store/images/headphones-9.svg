@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h9g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e2e8f0"/>
+      <stop offset="100%" style="stop-color:#cbd5e1"/>
+    </linearGradient>
+  </defs>
+  <!-- Clean, minimal headphones -->
+  <!-- Headband - elegant curve -->
+  <path d="M50 112 Q50 40 100 34 Q150 40 150 112" fill="none" stroke="#94a3b8" stroke-width="6" stroke-linecap="round"/>
+  <path d="M72 40 Q100 32 128 40" fill="none" stroke="#cbd5e1" stroke-width="10" stroke-linecap="round"/>
+  <!-- Left ear cup - smooth oval -->
+  <ellipse cx="50" cy="128" rx="20" ry="26" fill="url(#h9g)"/>
+  <ellipse cx="50" cy="128" rx="13" ry="18" fill="#f1f5f9"/>
+  <!-- Right ear cup -->
+  <ellipse cx="150" cy="128" rx="20" ry="26" fill="url(#h9g)"/>
+  <ellipse cx="150" cy="128" rx="13" ry="18" fill="#f1f5f9"/>
+  <!-- Subtle mic holes -->
+  <circle cx="36" cy="118" r="1" fill="#94a3b8"/>
+  <circle cx="36" cy="122" r="1" fill="#94a3b8"/>
+  <circle cx="36" cy="126" r="1" fill="#94a3b8"/>
+</svg>

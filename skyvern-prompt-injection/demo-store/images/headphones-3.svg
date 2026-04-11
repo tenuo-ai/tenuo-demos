@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h3g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#dc2626"/>
+      <stop offset="100%" style="stop-color:#991b1b"/>
+    </linearGradient>
+  </defs>
+  <!-- Headband -->
+  <path d="M46 115 Q46 42 100 36 Q154 42 154 115" fill="none" stroke="#1f2937" stroke-width="7" stroke-linecap="round"/>
+  <!-- Left ear cup -->
+  <rect x="30" y="102" width="38" height="50" rx="10" fill="url(#h3g)"/>
+  <text x="49" y="132" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="10" fill="white" opacity="0.8">B</text>
+  <!-- Right ear cup -->
+  <rect x="132" y="102" width="38" height="50" rx="10" fill="url(#h3g)"/>
+  <text x="151" y="132" text-anchor="middle" font-family="Arial" font-weight="bold" font-size="10" fill="white" opacity="0.8">K</text>
+  <!-- Bass vents -->
+  <line x1="38" y1="142" x2="60" y2="142" stroke="#7f1d1d" stroke-width="1.5"/>
+  <line x1="38" y1="146" x2="60" y2="146" stroke="#7f1d1d" stroke-width="1.5"/>
+  <line x1="140" y1="142" x2="162" y2="142" stroke="#7f1d1d" stroke-width="1.5"/>
+  <line x1="140" y1="146" x2="162" y2="146" stroke="#7f1d1d" stroke-width="1.5"/>
+</svg>

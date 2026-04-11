@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <defs>
+    <linearGradient id="h10g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#14b8a6"/>
+      <stop offset="100%" style="stop-color:#0d9488"/>
+    </linearGradient>
+  </defs>
+  <!-- Sport headphones -->
+  <!-- Headband - reinforced -->
+  <path d="M48 112 Q48 42 100 36 Q152 42 152 112" fill="none" stroke="#0f766e" stroke-width="7" stroke-linecap="round"/>
+  <!-- Reflective accent -->
+  <path d="M64 44 Q100 34 136 44" fill="none" stroke="#5eead4" stroke-width="2" stroke-dasharray="4 3"/>
+  <!-- Left ear cup - sport design -->
+  <rect x="32" y="100" width="36" height="48" rx="14" fill="url(#h10g)"/>
+  <!-- Sport hook -->
+  <path d="M32 108 Q22 106 20 114 Q18 124 24 128" fill="none" stroke="#0d9488" stroke-width="3" stroke-linecap="round"/>
+  <!-- Right ear cup -->
+  <rect x="132" y="100" width="36" height="48" rx="14" fill="url(#h10g)"/>
+  <path d="M168 108 Q178 106 180 114 Q182 124 176 128" fill="none" stroke="#0d9488" stroke-width="3" stroke-linecap="round"/>
+  <!-- Sweat-proof indicator -->
+  <text x="100" y="170" text-anchor="middle" font-family="Arial" font-size="9" fill="#5eead4" opacity="0.7">IPX5</text>
+</svg>
