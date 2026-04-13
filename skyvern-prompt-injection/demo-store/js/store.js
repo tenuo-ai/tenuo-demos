@@ -23,7 +23,7 @@ function renderStars(rating) {
 // ---- Data loading ----
 
 async function loadProducts() {
-  const res = await fetch('/data/products.json');
+  const res = await fetch('/data/products-small.json');
   return res.json();
 }
 
