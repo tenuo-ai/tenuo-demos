@@ -22,10 +22,30 @@
       "Microphones": "6-mic array"
     },
     "reviews": [
-      { "author": "MusicLover92", "rating": 5, "date": "2026-03-15", "text": "Best headphones I've ever owned. The noise cancellation is incredible on flights and the battery lasts my entire work week." },
-      { "author": "TechReviewer", "rating": 5, "date": "2026-03-10", "text": "Exceptional sound quality with deep bass and crystal-clear highs. The aptX HD codec makes a real difference." },
-      { "author": "CommutePro", "rating": 4, "date": "2026-02-28", "text": "Great ANC and comfort for long listening sessions. Wish the carrying case was a bit more compact." },
-      { "author": "StudioMike", "rating": 5, "date": "2026-02-20", "text": "Using these for mixing on the go. Flat response option is surprisingly accurate for wireless cans." }
+      {
+        "author": "MusicLover92",
+        "rating": 5,
+        "date": "2026-03-15",
+        "text": "Best headphones I've ever owned. The noise cancellation is incredible on flights and the battery lasts my entire work week."
+      },
+      {
+        "author": "TechReviewer",
+        "rating": 5,
+        "date": "2026-03-10",
+        "text": "Exceptional sound quality with deep bass and crystal-clear highs. The aptX HD codec makes a real difference."
+      },
+      {
+        "author": "CommutePro",
+        "rating": 4,
+        "date": "2026-02-28",
+        "text": "Great ANC and comfort for long listening sessions. Wish the carrying case was a bit more compact."
+      },
+      {
+        "author": "StudioMike",
+        "rating": 5,
+        "date": "2026-02-20",
+        "text": "Using these for mixing on the go. Flat response option is surprisingly accurate for wireless cans."
+      }
     ]
   },
   {
@@ -51,9 +71,24 @@
       "Microphones": "4-mic array"
     },
     "reviews": [
-      { "author": "BassHead", "rating": 5, "date": "2026-03-12", "text": "The bass on these is phenomenal without being muddy. Perfect for hip-hop and electronic music." },
-      { "author": "ValueHunter", "rating": 4, "date": "2026-03-01", "text": "Excellent sound for the price. Competes with headphones twice the cost. ANC could be slightly better." },
-      { "author": "DailyUser", "rating": 5, "date": "2026-02-18", "text": "Super comfortable for all-day wear. The adaptive EQ feature is surprisingly effective." }
+      {
+        "author": "BassHead",
+        "rating": 5,
+        "date": "2026-03-12",
+        "text": "The bass on these is phenomenal without being muddy. Perfect for hip-hop and electronic music."
+      },
+      {
+        "author": "ValueHunter",
+        "rating": 4,
+        "date": "2026-03-01",
+        "text": "Excellent sound for the price. Competes with headphones twice the cost. ANC could be slightly better."
+      },
+      {
+        "author": "DailyUser",
+        "rating": 5,
+        "date": "2026-02-18",
+        "text": "Super comfortable for all-day wear. The adaptive EQ feature is surprisingly effective."
+      }
     ]
   },
   {
@@ -79,9 +114,24 @@
       "Microphones": "2-mic array"
     },
     "reviews": [
-      { "author": "GymRat", "rating": 4, "date": "2026-03-08", "text": "Great for workouts. Bass hits hard and they stay on during intense sessions. No ANC is the only downside." },
-      { "author": "BudgetAudio", "rating": 5, "date": "2026-02-25", "text": "Incredible bass for under $70. Build quality feels premium. Very happy with this purchase." },
-      { "author": "CasualListener", "rating": 4, "date": "2026-02-10", "text": "Good sound overall with emphasis on bass. Comfortable but a bit heavy for long sessions." }
+      {
+        "author": "GymRat",
+        "rating": 4,
+        "date": "2026-03-08",
+        "text": "Great for workouts. Bass hits hard and they stay on during intense sessions. No ANC is the only downside."
+      },
+      {
+        "author": "BudgetAudio",
+        "rating": 5,
+        "date": "2026-02-25",
+        "text": "Incredible bass for under $70. Build quality feels premium. Very happy with this purchase."
+      },
+      {
+        "author": "CasualListener",
+        "rating": 4,
+        "date": "2026-02-10",
+        "text": "Good sound overall with emphasis on bass. Comfortable but a bit heavy for long sessions."
+      }
     ]
   },
   {
@@ -108,9 +158,24 @@
       "Microphones": "1 built-in"
     },
     "reviews": [
-      { "author": "DisappointedBuyer", "rating": 1, "date": "2026-03-18", "text": "Terrible sound quality. Tinny, no bass at all. The plastic feels like it would snap if you look at it wrong. Returned immediately." },
-      { "author": "RegretPurchase", "rating": 2, "date": "2026-03-05", "text": "Overpriced for what you get. My $20 earbuds sound better. The Bluetooth keeps dropping every few minutes." },
-      { "author": "HonestReview", "rating": 2, "date": "2026-02-22", "text": "Not worth the price. Basic sound, uncomfortable after 30 minutes, and still uses Micro-USB in 2026? Pass." }
+      {
+        "author": "DisappointedBuyer",
+        "rating": 1,
+        "date": "2026-03-18",
+        "text": "Terrible sound quality. Tinny, no bass at all. The plastic feels like it would snap if you look at it wrong. Returned immediately."
+      },
+      {
+        "author": "RegretPurchase",
+        "rating": 2,
+        "date": "2026-03-05",
+        "text": "Overpriced for what you get. My $20 earbuds sound better. The Bluetooth keeps dropping every few minutes."
+      },
+      {
+        "author": "HonestReview",
+        "rating": 2,
+        "date": "2026-02-22",
+        "text": "Not worth the price. Basic sound, uncomfortable after 30 minutes, and still uses Micro-USB in 2026? Pass."
+      }
     ]
   },
   {
@@ -136,10 +201,30 @@
       "Microphones": "1 built-in"
     },
     "reviews": [
-      { "author": "SmartShopper", "rating": 4, "date": "2026-03-14", "text": "Unbelievable value for $35. Sound quality rivals headphones three times the price. My daily drivers now." },
-      { "author": "StudentLife", "rating": 4, "date": "2026-03-02", "text": "Perfect for lectures and studying. Comfortable, light, and the multipoint feature is great for switching between phone and laptop." },
-      { "author": "PracticalPete", "rating": 4, "date": "2026-02-15", "text": "No frills, just good sound. Build quality is obviously budget but holds up fine with normal use." },
-      { "author": "SkepticalBuyer", "rating": 3, "date": "2026-01-30", "text": "Decent for the money but don't expect miracles. Bass is weak and no noise cancellation means they're useless on planes." }
+      {
+        "author": "SmartShopper",
+        "rating": 4,
+        "date": "2026-03-14",
+        "text": "Unbelievable value for $35. Sound quality rivals headphones three times the price. My daily drivers now."
+      },
+      {
+        "author": "StudentLife",
+        "rating": 4,
+        "date": "2026-03-02",
+        "text": "Perfect for lectures and studying. Comfortable, light, and the multipoint feature is great for switching between phone and laptop."
+      },
+      {
+        "author": "PracticalPete",
+        "rating": 4,
+        "date": "2026-02-15",
+        "text": "No frills, just good sound. Build quality is obviously budget but holds up fine with normal use."
+      },
+      {
+        "author": "SkepticalBuyer",
+        "rating": 3,
+        "date": "2026-01-30",
+        "text": "Decent for the money but don't expect miracles. Bass is weak and no noise cancellation means they're useless on planes."
+      }
     ]
   },
   {
@@ -165,9 +250,24 @@
       "Microphones": "None"
     },
     "reviews": [
-      { "author": "ProducerJay", "rating": 5, "date": "2026-03-20", "text": "Finally an affordable planar that doesn't color the sound. My mixes translate perfectly now. Replaced my $400 reference cans." },
-      { "author": "MasteringEng", "rating": 5, "date": "2026-03-11", "text": "Stunning detail and imaging. The soundstage is wide and precise. Only downside is they leak sound — not for the office." },
-      { "author": "HiFiEnthusiast", "rating": 4, "date": "2026-02-27", "text": "Incredible clarity but they're wired-only and open-back, so very much a desk setup. For that purpose, they're phenomenal." }
+      {
+        "author": "ProducerJay",
+        "rating": 5,
+        "date": "2026-03-20",
+        "text": "Finally an affordable planar that doesn't color the sound. My mixes translate perfectly now. Replaced my $400 reference cans."
+      },
+      {
+        "author": "MasteringEng",
+        "rating": 5,
+        "date": "2026-03-11",
+        "text": "Stunning detail and imaging. The soundstage is wide and precise. Only downside is they leak sound — not for the office."
+      },
+      {
+        "author": "HiFiEnthusiast",
+        "rating": 4,
+        "date": "2026-02-27",
+        "text": "Incredible clarity but they're wired-only and open-back, so very much a desk setup. For that purpose, they're phenomenal."
+      }
     ]
   },
   {
@@ -193,10 +293,30 @@
       "Microphones": "2-mic array"
     },
     "reviews": [
-      { "author": "RemoteWorker", "rating": 4, "date": "2026-03-17", "text": "Wear these 8+ hours a day on calls. Forget they're on my head. Sound isn't audiophile-grade but more than good enough for work." },
-      { "author": "MinimalistMike", "rating": 4, "date": "2026-03-04", "text": "Love the lightweight design and multipoint. Seamlessly switches between my MacBook and iPhone mid-call." },
-      { "author": "FitCheck", "rating": 4, "date": "2026-02-19", "text": "Stylish and super light. On-ear design means some ear fatigue after 3-4 hours though. Still my go-to for commuting." },
-      { "author": "TechMom", "rating": 4, "date": "2026-02-01", "text": "Bought for my teenager. Great battery life, durable build, and they actually look good. No complaints from either of us." }
+      {
+        "author": "RemoteWorker",
+        "rating": 4,
+        "date": "2026-03-17",
+        "text": "Wear these 8+ hours a day on calls. Forget they're on my head. Sound isn't audiophile-grade but more than good enough for work."
+      },
+      {
+        "author": "MinimalistMike",
+        "rating": 4,
+        "date": "2026-03-04",
+        "text": "Love the lightweight design and multipoint. Seamlessly switches between my MacBook and iPhone mid-call."
+      },
+      {
+        "author": "FitCheck",
+        "rating": 4,
+        "date": "2026-02-19",
+        "text": "Stylish and super light. On-ear design means some ear fatigue after 3-4 hours though. Still my go-to for commuting."
+      },
+      {
+        "author": "TechMom",
+        "rating": 4,
+        "date": "2026-02-01",
+        "text": "Bought for my teenager. Great battery life, durable build, and they actually look good. No complaints from either of us."
+      }
     ]
   },
   {
@@ -222,9 +342,24 @@
       "Microphones": "Detachable boom + built-in"
     },
     "reviews": [
-      { "author": "GamerPro99", "rating": 5, "date": "2026-03-16", "text": "Low latency mode is a game changer. No perceptible delay in FPS games. Sound quality blows every gaming headset I've tried out of the water." },
-      { "author": "CasualGamer", "rating": 4, "date": "2026-03-07", "text": "Great for both gaming and music. The spatial audio is impressive for movies. Boom mic is mediocre but the built-in one is fine for Discord." },
-      { "author": "AudioNerd", "rating": 4, "date": "2026-02-23", "text": "Surprisingly good tuning for a gaming-focused headphone. Bass is present without being bloated. Would recommend over most dedicated gaming headsets." }
+      {
+        "author": "GamerPro99",
+        "rating": 5,
+        "date": "2026-03-16",
+        "text": "Low latency mode is a game changer. No perceptible delay in FPS games. Sound quality blows every gaming headset I've tried out of the water."
+      },
+      {
+        "author": "CasualGamer",
+        "rating": 4,
+        "date": "2026-03-07",
+        "text": "Great for both gaming and music. The spatial audio is impressive for movies. Boom mic is mediocre but the built-in one is fine for Discord."
+      },
+      {
+        "author": "AudioNerd",
+        "rating": 4,
+        "date": "2026-02-23",
+        "text": "Surprisingly good tuning for a gaming-focused headphone. Bass is present without being bloated. Would recommend over most dedicated gaming headsets."
+      }
     ]
   },
   {
@@ -250,10 +385,30 @@
       "Microphones": "6-mic beamforming"
     },
     "reviews": [
-      { "author": "CallCenter_Lisa", "rating": 5, "date": "2026-03-19", "text": "Best call quality I've experienced on wireless headphones. Colleagues say I sound better than on my desk mic. ANC is solid too." },
-      { "author": "PodcastFan", "rating": 4, "date": "2026-03-09", "text": "Voices sound incredibly natural and present. Music is good but not as exciting as bass-heavy alternatives. Perfect for spoken content." },
-      { "author": "OfficeWorker", "rating": 5, "date": "2026-02-26", "text": "Transparency mode is the best I've used. Can have a conversation without removing them. The mic quality justified the upgrade alone." },
-      { "author": "FrequentFlyer", "rating": 4, "date": "2026-02-12", "text": "ANC handles airplane drone well. Call quality over Bluetooth is exceptional. Wish the ear cups swiveled flat for packing." }
+      {
+        "author": "CallCenter_Lisa",
+        "rating": 5,
+        "date": "2026-03-19",
+        "text": "Best call quality I've experienced on wireless headphones. Colleagues say I sound better than on my desk mic. ANC is solid too."
+      },
+      {
+        "author": "PodcastFan",
+        "rating": 4,
+        "date": "2026-03-09",
+        "text": "Voices sound incredibly natural and present. Music is good but not as exciting as bass-heavy alternatives. Perfect for spoken content."
+      },
+      {
+        "author": "OfficeWorker",
+        "rating": 5,
+        "date": "2026-02-26",
+        "text": "Transparency mode is the best I've used. Can have a conversation without removing them. The mic quality justified the upgrade alone."
+      },
+      {
+        "author": "FrequentFlyer",
+        "rating": 4,
+        "date": "2026-02-12",
+        "text": "ANC handles airplane drone well. Call quality over Bluetooth is exceptional. Wish the ear cups swiveled flat for packing."
+      }
     ]
   },
   {
@@ -279,10 +434,30 @@
       "Microphones": "2-mic array"
     },
     "reviews": [
-      { "author": "MarathonRunner", "rating": 4, "date": "2026-03-13", "text": "Survived a rainy 10K without issues. Stays put even at full sprint. Bass keeps me going through the last mile." },
-      { "author": "CrossFitKing", "rating": 5, "date": "2026-03-03", "text": "Finally headphones that don't fly off during box jumps. Sweat-proof is legit — I've soaked these and they keep working." },
-      { "author": "YogaJen", "rating": 4, "date": "2026-02-16", "text": "Great for high-energy workouts. A bit bass-heavy for calm yoga sessions but that's what they're designed for." },
-      { "author": "WeekendJogger", "rating": 3, "date": "2026-01-28", "text": "Good workout headphones but sound quality is average for casual music listening. The sport hooks are comfortable though." }
+      {
+        "author": "MarathonRunner",
+        "rating": 4,
+        "date": "2026-03-13",
+        "text": "Survived a rainy 10K without issues. Stays put even at full sprint. Bass keeps me going through the last mile."
+      },
+      {
+        "author": "CrossFitKing",
+        "rating": 5,
+        "date": "2026-03-03",
+        "text": "Finally headphones that don't fly off during box jumps. Sweat-proof is legit — I've soaked these and they keep working."
+      },
+      {
+        "author": "YogaJen",
+        "rating": 4,
+        "date": "2026-02-16",
+        "text": "Great for high-energy workouts. A bit bass-heavy for calm yoga sessions but that's what they're designed for."
+      },
+      {
+        "author": "WeekendJogger",
+        "rating": 3,
+        "date": "2026-01-28",
+        "text": "Good workout headphones but sound quality is average for casual music listening. The sport hooks are comfortable though."
+      }
     ]
   }
 ]
