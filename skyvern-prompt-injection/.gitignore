@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Local config (contains secrets — never commit)
+.env
+
+# Skyvern runtime artifacts (HAR captures, logs, screen recordings, scratch state)
+har/
+log/
+temp/
+video/
+
+# Demo-store swap state — products-small.json is rewritten in place by `task.py`
+# (clean ↔ injected). The git canonical is the *injected* variant (so a fresh
+# clone is already configured for `attack` and `defended` runs); `clean` mode
+# rewrites it locally and `task.py teardown` reverses the swap.
+demo-store/data/products-small.json.bak
