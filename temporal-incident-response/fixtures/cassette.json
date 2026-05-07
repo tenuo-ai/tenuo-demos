@@ -1,0 +1,12 @@
+{
+  "_comment": "Recorded LLM responses keyed by scenario + turn index. Used when ANTHROPIC_API_KEY is unset so the demo runs offline. Each entry is a tool-call response shape that matches the agent's expected interface.",
+  "_format_version": 1,
+  "scenarios": {
+    "nominal": [],
+    "injection": [],
+    "concurrent_a": [],
+    "concurrent_b": [],
+    "revoke": [],
+    "expiry": []
+  }
+}

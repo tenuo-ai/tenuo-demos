@@ -1,0 +1,27 @@
+{
+  "_comment": "Realistic PagerDuty-shape alert payload. Replace placeholders during scenario script work.",
+  "incident": {
+    "id": "PT3D8X2",
+    "incident_id": "IR-2026-04-29-0481",
+    "title": "HighErrorRate on payment-service-prod",
+    "severity": "high",
+    "status": "triggered",
+    "created_at": "2026-04-29T14:23:00Z",
+    "service": {
+      "name": "payment-service-prod",
+      "tier": "tier-1",
+      "environment": "production",
+      "pii_flagged": true
+    },
+    "alerted_to": [
+      {"role": "primary-oncall", "user": "oncall-primary-2026w17"}
+    ]
+  },
+  "metric": {
+    "name": "http_5xx_rate",
+    "value": 0.21,
+    "threshold": 0.05,
+    "window": "5m"
+  },
+  "runbook_url": "https://internal.company/runbooks/payment-service-high-error-rate"
+}
