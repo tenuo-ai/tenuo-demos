@@ -63,14 +63,8 @@ class OperationsState:
         return asdict(self.snapshot(service))
 
     def rollback(self, service: str, deployment: str) -> DeploymentState:
-        current = self.snapshot(service)
-        if current.deployment != deployment:
-            raise ValueError(
-                f"deployment {deployment} is not active for {service}; "
-                f"active={current.deployment}"
-            )
         with self._connect() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE services
                 SET deployment = previous_deployment,
@@ -78,8 +72,18 @@ class OperationsState:
                     p95_latency_ms = 310,
                     error_rate = 0.004,
                     rollbacks_executed = rollbacks_executed + 1
-                WHERE service = ?
+                WHERE service = ? AND deployment = ?
                 """,
-                (deployment, service),
+                (deployment, service, deployment),
             )
+            if cursor.rowcount == 0:
+                row = connection.execute(
+                    "SELECT deployment FROM services WHERE service = ?", (service,)
+                ).fetchone()
+                if row is None:
+                    raise ValueError(f"unknown service: {service}")
+                raise ValueError(
+                    f"deployment {deployment} is not active for {service}; "
+                    f"active={row['deployment']}"
+                )
         return self.snapshot(service)

@@ -6,6 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 from tenuo.mcp import SecureMCPClient
 
@@ -14,9 +15,17 @@ from .authority import PresentedAuthority
 
 @dataclass(frozen=True)
 class ToolOutcome:
-    allowed: bool
+    status: Literal["allowed", "denied", "error"]
     text: str
     error: str | None = None
+
+    @property
+    def allowed(self) -> bool:
+        return self.status == "allowed"
+
+    @property
+    def denied(self) -> bool:
+        return self.status == "denied"
 
 
 def _content_text(result: object) -> str:
@@ -26,8 +35,21 @@ def _content_text(result: object) -> str:
 
 class OperationsMCP:
     def __init__(self, *, issuer_public_hex: str, state_path: Path) -> None:
+        # The MCP server needs process/runtime configuration, not the agent's
+        # downstream credentials (notably OPENAI_API_KEY).
+        inherited_names = (
+            "HOME",
+            "LANG",
+            "LC_ALL",
+            "PATH",
+            "PYTHONPATH",
+            "SSL_CERT_DIR",
+            "SSL_CERT_FILE",
+            "TMPDIR",
+            "VIRTUAL_ENV",
+        )
         env = {
-            **os.environ,
+            **{name: os.environ[name] for name in inherited_names if name in os.environ},
             "TENUO_DEMO_ISSUER_PUBLIC_KEY": issuer_public_hex,
             "TENUO_DEMO_STATE_PATH": str(state_path),
         }
@@ -64,14 +86,20 @@ class OperationsMCP:
         is_error = getattr(result, "is_error", None)
         if is_error is None:
             is_error = getattr(result, "isError", False)
-        denied = bool(is_error)
+        is_error = bool(is_error)
         structured = getattr(result, "structured_content", None)
         if structured is None:
             structured = getattr(result, "structuredContent", None)
         structured = structured or {}
-        error = None
-        if denied:
-            tenuo = structured.get("tenuo", {}) if isinstance(structured, dict) else {}
-            error = tenuo.get("message") if isinstance(tenuo, dict) else None
-            error = error or text or "authorization denied"
-        return ToolOutcome(allowed=not denied, text=text, error=error)
+        tenuo = structured.get("tenuo", {}) if isinstance(structured, dict) else {}
+        is_denial = is_error and isinstance(tenuo, dict) and bool(tenuo)
+        if not is_error:
+            return ToolOutcome(status="allowed", text=text)
+
+        error = tenuo.get("message") if is_denial else None
+        error = error or text or "MCP tool call failed"
+        return ToolOutcome(
+            status="denied" if is_denial else "error",
+            text=text,
+            error=error,
+        )

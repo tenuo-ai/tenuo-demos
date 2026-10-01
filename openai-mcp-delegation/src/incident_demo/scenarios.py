@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from tenuo import Exact
+from tenuo import Exact, SigningKey
 
 from .authority import PresentedAuthority, create_authority
 from .mcp_client import OperationsMCP, ToolOutcome
@@ -21,6 +21,29 @@ class ScenarioResult:
     outcome: ToolOutcome
 
 
+def _show_case(index: int, name: str) -> None:
+    print(f"\n{index}. CASE  {name}", flush=True)
+
+
+def _show_result(result: ScenarioResult) -> None:
+    if result.outcome.allowed:
+        actual = "ALLOW"
+    elif result.outcome.denied:
+        actual = "DENY"
+    else:
+        actual = "ERROR"
+    mark = "PASS" if actual == result.expected else "FAIL"
+    detail = result.outcome.text if result.outcome.allowed else result.outcome.error
+    if detail and "Proof-of-Possession verification failed" in detail:
+        detail = "Proof-of-Possession verification failed"
+    print(
+        f"   [{mark}] expected={result.expected} actual={actual}",
+        flush=True,
+    )
+    if detail:
+        print(f"   RESULT {detail}", flush=True)
+
+
 async def run_baseline(*, show: bool = True) -> list[ScenarioResult]:
     """Establish tool-level task scope before introducing delegation."""
     authority = create_authority()
@@ -28,38 +51,37 @@ async def run_baseline(*, show: bool = True) -> list[ScenarioResult]:
     state_path = Path(state_dir.name) / "operations.sqlite3"
 
     try:
+        if show:
+            print("\nTool-level task scope over MCP", flush=True)
         async with OperationsMCP(
             issuer_public_hex=authority.issuer_public_hex,
             state_path=state_path,
         ) as mcp:
+            if show:
+                _show_case(1, "read checkout metrics")
             allowed = await mcp.call(
                 authority.orchestrator,
                 "read_metrics",
                 {"service": "checkout"},
             )
+            allowed_result = ScenarioResult("read checkout metrics", "ALLOW", allowed)
+            if show:
+                _show_result(allowed_result)
+
+            if show:
+                _show_case(2, "read payments metrics")
             denied = await mcp.call(
                 authority.orchestrator,
                 "read_metrics",
                 {"service": "payments"},
             )
+            denied_result = ScenarioResult("read payments metrics", "DENY", denied)
+            if show:
+                _show_result(denied_result)
     finally:
         state_dir.cleanup()
 
-    results = [
-        ScenarioResult("read checkout metrics", "ALLOW", allowed),
-        ScenarioResult("read payments metrics", "DENY", denied),
-    ]
-    if show:
-        print("\nTool-level task scope over MCP\n")
-        for index, result in enumerate(results, start=1):
-            actual = "ALLOW" if result.outcome.allowed else "DENY"
-            mark = "PASS" if actual == result.expected else "FAIL"
-            detail = result.outcome.text if result.outcome.allowed else result.outcome.error
-            print(f"{index}. [{mark}] {result.name:22} expected={result.expected} actual={actual}")
-            if detail:
-                print(f"   {detail}")
-
-    return results
+    return [allowed_result, denied_result]
 
 
 async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
@@ -68,31 +90,74 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
     state_path = Path(state_dir.name) / "operations.sqlite3"
     results: list[ScenarioResult] = []
 
+    async def run_case(
+        index: int,
+        name: str,
+        expected: str,
+        mcp: OperationsMCP,
+        presented: PresentedAuthority,
+        tool: str,
+        arguments: dict[str, object],
+    ) -> ToolOutcome:
+        if show:
+            _show_case(index, name)
+        outcome = await mcp.call(presented, tool, arguments)
+        result = ScenarioResult(name, expected, outcome)
+        results.append(result)
+        if show:
+            _show_result(result)
+        return outcome
+
     try:
+        if show:
+            print("\nTask-scoped authorization over MCP", flush=True)
         async with OperationsMCP(
             issuer_public_hex=authority.issuer_public_hex,
             state_path=state_path,
         ) as mcp:
-            read = await mcp.call(
+            await run_case(
+                1,
+                "delegated read",
+                "ALLOW",
+                mcp,
                 authority.delegated_worker,
                 "read_deployment",
                 {"service": "checkout"},
             )
-            results.append(ScenarioResult("delegated read", "ALLOW", read))
 
-            rollback = await mcp.call(
+            await run_case(
+                2,
+                "worker rollback",
+                "DENY",
+                mcp,
                 authority.delegated_worker,
                 "rollback_deployment",
                 {"service": "checkout", "deployment": "8c1e"},
             )
-            results.append(ScenarioResult("worker rollback", "DENY", rollback))
 
-            detached = await mcp.call(
+            stolen_authority = PresentedAuthority(
+                authority.delegated_worker.chain,
+                SigningKey.generate(),
+            )
+            await run_case(
+                3,
+                "stolen chain",
+                "DENY",
+                mcp,
+                stolen_authority,
+                "read_deployment",
+                {"service": "checkout"},
+            )
+
+            await run_case(
+                4,
+                "child without parent",
+                "DENY",
+                mcp,
                 authority.delegated_worker.detached(),
                 "read_deployment",
                 {"service": "checkout"},
             )
-            results.append(ScenarioResult("child without parent", "DENY", detached))
 
             # Keep the same trusted root and derive a deliberately short-lived
             # worker warrant from it.
@@ -107,18 +172,25 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
                 (authority.root, expired_child), authority.worker_key
             )
             await asyncio.sleep(1.2)
-            expired = await mcp.call(
+            await run_case(
+                5,
+                "expired child",
+                "DENY",
+                mcp,
                 expired_authority,
                 "read_deployment",
                 {"service": "checkout"},
             )
-            results.append(ScenarioResult("expired child", "DENY", expired))
 
+            if show:
+                print("\nVERIFY protected state was not changed", flush=True)
             state = await mcp.call(
                 authority.delegated_worker,
                 "read_deployment",
                 {"service": "checkout"},
             )
+            if not state.allowed:
+                raise AssertionError(f"protected-state read failed: {state.error}")
             snapshot = json.loads(state.text)
             if snapshot["deployment"] != "8c1e" or snapshot["rollbacks_executed"] != 0:
                 raise AssertionError("denied rollback changed operations state")
@@ -126,14 +198,6 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
         state_dir.cleanup()
 
     if show:
-        print("\nTask-scoped authorization over MCP\n")
-        for index, result in enumerate(results, start=1):
-            actual = "ALLOW" if result.outcome.allowed else "DENY"
-            mark = "PASS" if actual == result.expected else "FAIL"
-            detail = result.outcome.text if result.outcome.allowed else result.outcome.error
-            print(f"{index}. [{mark}] {result.name:22} expected={result.expected} actual={actual}")
-            if detail:
-                print(f"   {detail}")
-        print("\nProtected state: deployment=8c1e, rollbacks_executed=0")
+        print("[PASS] deployment=8c1e, rollbacks_executed=0", flush=True)
 
     return results

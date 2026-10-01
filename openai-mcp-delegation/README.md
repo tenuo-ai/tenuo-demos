@@ -115,14 +115,16 @@ Run:
 uv run incident-demo agent
 ```
 
-The OpenAI orchestrator delegates the investigation to a worker. The worker
-chooses the two permitted reads and uses the protected MCP server.
+The OpenAI orchestrator delegates the investigation to a worker. At that
+handoff, the orchestrator derives a fresh, read-only child warrant for the
+worker invocation. The worker chooses the two permitted reads and uses the
+protected MCP server.
 
 This run shows that the authorization layer fits a normal agent workflow. The
 deterministic cases below make the security claims reproducible without a model
 or network connection.
 
-### 3. Four deterministic delegation cases
+### 3. Five deterministic delegation cases
 
 Run:
 
@@ -134,6 +136,7 @@ uv run incident-demo cases
 |---|---:|---|
 | Worker reads checkout deployment | Allow | The child warrant permits this operation and `service="checkout"`. |
 | Worker requests rollback | Deny | Delegation is subtractive. The parent has rollback authority, but the child does not. |
+| A different key presents the worker's chain | Deny | A valid chain is unusable without proof that the caller is its intended holder. |
 | Worker presents the child without its parent | Deny | The server needs a verifiable path from the child back to a trusted issuer. |
 | Worker presents an expired child | Deny | Authority ends when the task grant expires. |
 
@@ -193,9 +196,15 @@ Run the OpenAI orchestrator and worker:
 
 ```bash
 export OPENAI_API_KEY="your-key"
-# Optional: export OPENAI_MODEL="your-model"
+# Optional override; the tested default is gpt-5-mini.
+export OPENAI_MODEL="gpt-5-mini"
 uv run incident-demo agent
 ```
+
+The project does not automatically load `.env` files. `.env.example` is a
+shell export template; source it only after replacing its placeholders. Pin
+`OPENAI_MODEL` if you rehearse with a model other than the tested
+`gpt-5-mini` default.
 
 Run the rehearsal helper:
 
@@ -209,15 +218,16 @@ still runs the complete authorization path.
 ## Where the implementation lives
 
 - [`authority.py`](src/incident_demo/authority.py) creates the orchestrator
-  warrant, derives the read-only worker warrant, builds the chain, and signs
-  each final call.
+  warrant, derives a read-only worker warrant at handoff, builds the chain,
+  and signs each final call.
 - [`mcp_client.py`](src/incident_demo/mcp_client.py) attaches the warrant chain
   and holder proof to MCP `_meta` after the tool name and arguments are final.
 - [`ops_server.py`](src/incident_demo/ops_server.py) installs Tenuo verification
-  as FastMCP middleware before the tool handlers.
+  as FastMCP middleware before the tool handlers and emits stable `ALLOWED` or
+  `DENIED` audit lines for each authorization decision.
 - [`agents.py`](src/incident_demo/agents.py) defines the OpenAI orchestrator and
   worker-as-tool workflow.
-- [`scenarios.py`](src/incident_demo/scenarios.py) runs the baseline, the four
+- [`scenarios.py`](src/incident_demo/scenarios.py) runs the baseline, the five
   delegation cases, and the protected-state assertion.
 - [`state.py`](src/incident_demo/state.py) implements the temporary SQLite
   operations state.

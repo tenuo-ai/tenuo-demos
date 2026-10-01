@@ -8,6 +8,7 @@ import os
 import sys
 
 from fastmcp import FastMCP
+from fastmcp.server.middleware.middleware import CallNext, Middleware, MiddlewareContext
 from tenuo import Authorizer, PublicKey
 from tenuo.mcp import MCPVerifier, TenuoMiddleware
 
@@ -19,6 +20,31 @@ logging.basicConfig(
     stream=sys.stderr,
 )
 log = logging.getLogger(__name__)
+logging.getLogger("fastmcp").setLevel(logging.WARNING)
+logging.getLogger("tenuo").setLevel(logging.CRITICAL)
+
+
+class AuthorizationAuditMiddleware(Middleware):
+    """Emit one stable server-side line for every authorization decision."""
+
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext,
+        call_next: CallNext,
+    ) -> object:
+        result = await call_next(context)
+        structured = getattr(result, "structured_content", None) or {}
+        tenuo = structured.get("tenuo", {}) if isinstance(structured, dict) else {}
+        if isinstance(tenuo, dict) and tenuo:
+            reason = tenuo.get("message", "Authorization denied")
+            if "Proof-of-Possession verification failed" in reason:
+                reason = "Proof-of-Possession verification failed"
+            log.warning("DENIED %s: %s", context.message.name, reason)
+        elif getattr(result, "is_error", False):
+            log.error("ERROR %s: tool execution failed", context.message.name)
+        else:
+            log.info("ALLOWED %s", context.message.name)
+        return result
 
 
 def create_server() -> FastMCP:
@@ -35,7 +61,10 @@ def create_server() -> FastMCP:
     )
     verifier = MCPVerifier(authorizer=authorizer, require_warrant=True)
     state = OperationsState(state_path)
-    mcp = FastMCP("operations", middleware=[TenuoMiddleware(verifier)])
+    mcp = FastMCP(
+        "operations",
+        middleware=[AuthorizationAuditMiddleware(), TenuoMiddleware(verifier)],
+    )
 
     @mcp.tool()
     async def read_metrics(service: str) -> str:

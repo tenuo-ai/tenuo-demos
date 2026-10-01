@@ -63,10 +63,23 @@ class DemoAuthority:
         return self.issuer_key.public_key.to_bytes().hex()
 
 
-def create_authority(*, child_ttl: int = 120) -> DemoAuthority:
+@dataclass(frozen=True)
+class RootAuthority:
+    """Authority held by the long-running orchestrator."""
+
+    issuer_key: SigningKey
+    orchestrator_key: SigningKey
+    root: Warrant
+
+    @property
+    def issuer_public_hex(self) -> str:
+        return self.issuer_key.public_key.to_bytes().hex()
+
+
+def create_root_authority() -> RootAuthority:
+    """Mint the orchestrator's broad, long-lived authority."""
     issuer_key = SigningKey.generate()
     orchestrator_key = SigningKey.generate()
-    worker_key = SigningKey.generate()
 
     root = (
         Warrant.mint_builder()
@@ -82,19 +95,47 @@ def create_authority(*, child_ttl: int = 120) -> DemoAuthority:
         .mint(issuer_key)
     )
 
+    return RootAuthority(
+        issuer_key=issuer_key,
+        orchestrator_key=orchestrator_key,
+        root=root,
+    )
+
+
+def derive_worker_authority(
+    authority: RootAuthority,
+    *,
+    child_ttl: int = 120,
+    worker_key: SigningKey | None = None,
+) -> tuple[SigningKey, Warrant, PresentedAuthority]:
+    """Derive read-only authority for one worker invocation."""
+    worker_key = worker_key or SigningKey.generate()
+
     worker = (
-        root.grant_builder()
+        authority.root.grant_builder()
         .capability("read_metrics", service=Exact("checkout"))
         .capability("read_deployment", service=Exact("checkout"))
         .holder(worker_key.public_key)
         .ttl(child_ttl)
-        .grant(orchestrator_key)
+        .grant(authority.orchestrator_key)
+    )
+
+    presented = PresentedAuthority((authority.root, worker), worker_key)
+    return worker_key, worker, presented
+
+
+def create_authority(*, child_ttl: int = 120) -> DemoAuthority:
+    """Create a complete authority fixture for deterministic scenarios."""
+    root_authority = create_root_authority()
+    worker_key, worker, _ = derive_worker_authority(
+        root_authority,
+        child_ttl=child_ttl,
     )
 
     return DemoAuthority(
-        issuer_key=issuer_key,
-        orchestrator_key=orchestrator_key,
+        issuer_key=root_authority.issuer_key,
+        orchestrator_key=root_authority.orchestrator_key,
         worker_key=worker_key,
-        root=root,
+        root=root_authority.root,
         worker=worker,
     )
