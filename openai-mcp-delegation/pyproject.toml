@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tenuo-openai-mcp-delegation-demo"
+version = "0.1.0"
+description = "Task-scoped authorization across OpenAI agent delegation and MCP"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "fastmcp>=3.2.1,<5",
+  "openai-agents>=0.7,<1",
+  "tenuo[fastmcp]>=0.3,<0.4",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<10",
+  "pytest-asyncio>=0.24,<2",
+]
+
+[project.scripts]
+incident-demo = "incident_demo.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/incident_demo"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
