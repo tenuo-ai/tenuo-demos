@@ -146,6 +146,17 @@ async def run_cases(
         ) as mcp:
             await run_case(
                 1,
+                "parent reads payments deployment",
+                "ALLOW",
+                mcp,
+                authority.orchestrator,
+                "read_deployment",
+                {"service": "payments"},
+                "The parent warrant permits deployment reads for checkout and payments.",
+            )
+
+            await run_case(
+                2,
                 "delegated read",
                 "ALLOW",
                 mcp,
@@ -156,7 +167,7 @@ async def run_cases(
             )
 
             await run_case(
-                2,
+                3,
                 "read outside service scope",
                 "DENY",
                 mcp,
@@ -167,7 +178,7 @@ async def run_cases(
             )
 
             await run_case(
-                3,
+                4,
                 "worker rollback",
                 "DENY",
                 mcp,
@@ -182,7 +193,7 @@ async def run_cases(
                 SigningKey.generate(),
             )
             await run_case(
-                4,
+                5,
                 "stolen chain",
                 "DENY",
                 mcp,
@@ -193,7 +204,7 @@ async def run_cases(
             )
 
             await run_case(
-                5,
+                6,
                 "child without parent",
                 "DENY",
                 mcp,
@@ -217,7 +228,7 @@ async def run_cases(
             )
             await asyncio.sleep(1.2)
             await run_case(
-                6,
+                7,
                 "expired child",
                 "DENY",
                 mcp,

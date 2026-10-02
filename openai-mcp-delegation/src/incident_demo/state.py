@@ -43,11 +43,14 @@ class OperationsState:
                 )
                 """
             )
-            connection.execute(
+            connection.executemany(
                 """
                 INSERT OR IGNORE INTO services VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                ("checkout", "production", "8c1e", "79af", 1840, 0.071, 0),
+                [
+                    ("checkout", "production", "8c1e", "79af", 1840, 0.071, 0),
+                    ("payments", "production", "4d2a", "31bc", 240, 0.003, 0),
+                ],
             )
 
     def snapshot(self, service: str) -> DeploymentState:
