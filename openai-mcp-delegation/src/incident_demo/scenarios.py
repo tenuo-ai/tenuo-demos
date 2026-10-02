@@ -25,6 +25,16 @@ def _show_case(index: int, name: str) -> None:
     print(f"\n{index}. CASE  {name}", flush=True)
 
 
+def _pause_for_stage(message: str) -> None:
+    """Let the presenter establish the claim before the call executes."""
+    print(f"   WATCH  {message}", flush=True)
+    try:
+        input("   Press Enter to run this call... ")
+    except EOFError:
+        # A piped or otherwise non-interactive terminal should still complete.
+        print("\n   Input unavailable; continuing.", flush=True)
+
+
 def _show_result(result: ScenarioResult) -> None:
     if result.outcome.allowed:
         actual = "ALLOW"
@@ -44,7 +54,11 @@ def _show_result(result: ScenarioResult) -> None:
         print(f"   RESULT {detail}", flush=True)
 
 
-async def run_baseline(*, show: bool = True) -> list[ScenarioResult]:
+async def run_baseline(
+    *,
+    show: bool = True,
+    step: bool = False,
+) -> list[ScenarioResult]:
     """Establish tool-level task scope before introducing delegation."""
     authority = create_authority()
     state_dir = tempfile.TemporaryDirectory(prefix="tenuo-tool-scope-demo-")
@@ -59,6 +73,10 @@ async def run_baseline(*, show: bool = True) -> list[ScenarioResult]:
         ) as mcp:
             if show:
                 _show_case(1, "read checkout metrics")
+                if step:
+                    _pause_for_stage(
+                        "The warrant permits this tool with service=checkout."
+                    )
             allowed = await mcp.call(
                 authority.orchestrator,
                 "read_metrics",
@@ -70,6 +88,10 @@ async def run_baseline(*, show: bool = True) -> list[ScenarioResult]:
 
             if show:
                 _show_case(2, "read payments metrics")
+                if step:
+                    _pause_for_stage(
+                        "The tool is unchanged; only the service argument is outside scope."
+                    )
             denied = await mcp.call(
                 authority.orchestrator,
                 "read_metrics",
@@ -84,7 +106,11 @@ async def run_baseline(*, show: bool = True) -> list[ScenarioResult]:
     return [allowed_result, denied_result]
 
 
-async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
+async def run_cases(
+    *,
+    show: bool = True,
+    step: bool = False,
+) -> list[ScenarioResult]:
     authority = create_authority()
     state_dir = tempfile.TemporaryDirectory(prefix="tenuo-incident-demo-")
     state_path = Path(state_dir.name) / "operations.sqlite3"
@@ -98,9 +124,12 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
         presented: PresentedAuthority,
         tool: str,
         arguments: dict[str, object],
+        watch: str,
     ) -> ToolOutcome:
         if show:
             _show_case(index, name)
+            if step:
+                _pause_for_stage(watch)
         outcome = await mcp.call(presented, tool, arguments)
         result = ScenarioResult(name, expected, outcome)
         results.append(result)
@@ -123,6 +152,7 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
                 authority.delegated_worker,
                 "read_deployment",
                 {"service": "checkout"},
+                "The child warrant permits this exact read.",
             )
 
             await run_case(
@@ -133,6 +163,7 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
                 authority.delegated_worker,
                 "rollback_deployment",
                 {"service": "checkout", "deployment": "8c1e"},
+                "The parent permits rollback, but the worker's child warrant does not.",
             )
 
             stolen_authority = PresentedAuthority(
@@ -147,6 +178,7 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
                 stolen_authority,
                 "read_deployment",
                 {"service": "checkout"},
+                "The chain is valid, but the caller cannot prove it is the named holder.",
             )
 
             await run_case(
@@ -157,6 +189,7 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
                 authority.delegated_worker.detached(),
                 "read_deployment",
                 {"service": "checkout"},
+                "The child is valid only with its verifiable parent lineage.",
             )
 
             # Keep the same trusted root and derive a deliberately short-lived
@@ -180,10 +213,15 @@ async def run_cases(*, show: bool = True) -> list[ScenarioResult]:
                 expired_authority,
                 "read_deployment",
                 {"service": "checkout"},
+                "The operation is in scope, but the task authority has expired.",
             )
 
             if show:
                 print("\nVERIFY protected state was not changed", flush=True)
+                if step:
+                    _pause_for_stage(
+                        "The rollback handler should never have changed deployment state."
+                    )
             state = await mcp.call(
                 authority.delegated_worker,
                 "read_deployment",
