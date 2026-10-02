@@ -10,6 +10,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 | [**Skyvern Prompt Injection**](skyvern-prompt-injection/) | An AI shopping agent browses an e-commerce store. A hidden prompt injection tricks it into buying a terrible product. Tenuo's warrant constraints block the bad purchase — the LLM is compromised but the outcome isn't. |
 | [**Temporal Incident Response**](temporal-incident-response/) | An AI on-call agent triages a production incident as a Temporal workflow. Investigation runs autonomously; the production restart is gated by a cryptographically signed human approval; the receipt chain is offline-verifiable end-to-end. |
 | [**Temporal Order Repair**](temporal-order-repair/) | Josh Smith's multi-agent order-repair demo on Temporal, with a warrant per order. Poisoned customer notes get the planner to route an approval to the wrong person and order 5,000 badge sets; the warrant refuses the first and holds the second for signed approval. Approvals arrive as Temporal Signals, and every checked call gets an offline-verifiable receipt. |
+| [**OpenAI + MCP Delegation**](openai-mcp-delegation/) | An OpenAI orchestrator delegates incident investigation to a worker. A FastMCP server accepts an in-scope read but rejects an out-of-scope argument, a rollback, a stolen chain, a detached child warrant, and an expired grant. |
 
 ## What is Tenuo?
 
