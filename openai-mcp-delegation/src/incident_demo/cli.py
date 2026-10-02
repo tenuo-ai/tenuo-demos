@@ -20,24 +20,29 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         default="cases",
     )
+    parser.add_argument(
+        "--step",
+        action="store_true",
+        help="pause before each deterministic MCP call for stage narration",
+    )
     return parser
 
 
-async def _run(command: str) -> None:
+async def _run(command: str, *, step: bool = False) -> None:
     if command in {"baseline", "all"}:
-        await run_baseline(show=True)
+        await run_baseline(show=True, step=step)
     if command == "agent" or (command == "all" and os.environ.get("OPENAI_API_KEY")):
         print("\nLive agent investigation\n")
         print(await run_live_agent())
     elif command == "all":
         print("\nOPENAI_API_KEY is not set; skipped live agent run")
     if command in {"cases", "all"}:
-        await run_cases(show=True)
+        await run_cases(show=True, step=step)
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    asyncio.run(_run(args.command))
+    asyncio.run(_run(args.command, step=args.step))
 
 
 if __name__ == "__main__":

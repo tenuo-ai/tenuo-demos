@@ -192,6 +192,14 @@ uv run incident-demo baseline
 uv run incident-demo cases
 ```
 
+For a presenter-controlled run, add `--step`. The command pauses before each
+deterministic MCP call so you can explain the expected authorization decision:
+
+```bash
+uv run incident-demo baseline --step
+uv run incident-demo cases --step
+```
+
 Run the OpenAI orchestrator and worker:
 
 ```bash
