@@ -30,7 +30,7 @@ does not depend on the model following instructions.
 Operator
    |
    v
-OpenAI orchestrator                  may read and roll back checkout
+OpenAI orchestrator                  may read checkout/payments; roll back checkout
    |
    | delegates only the investigation
    v
@@ -70,7 +70,7 @@ what that caller may do for the current unit of work.
 The demo gives the orchestrator a signed **root warrant**. It permits:
 
 - reading checkout metrics;
-- reading checkout deployment state;
+- reading checkout and payments deployment state;
 - rolling back a checkout deployment.
 
 The orchestrator derives a **child warrant** for the worker. The child keeps
@@ -124,7 +124,7 @@ This run shows that the authorization layer fits a normal agent workflow. The
 deterministic cases below make the security claims reproducible without a model
 or network connection.
 
-### 3. Six deterministic delegation cases
+### 3. Seven deterministic delegation cases
 
 Run:
 
@@ -134,8 +134,9 @@ uv run incident-demo cases
 
 | Scenario | Result | What it demonstrates |
 |---|---:|---|
+| Orchestrator reads payments deployment | Allow | The parent warrant permits the tool for both checkout and payments. |
 | Worker reads checkout deployment | Allow | The child warrant permits this operation and `service="checkout"`. |
-| Worker reads payments deployment | Deny | The tool is permitted, but `service="payments"` is outside the child warrant's argument constraints. |
+| Worker reads payments deployment | Deny | Delegation retained the tool but narrowed its service argument from `{checkout, payments}` to `{checkout}`. |
 | Worker requests rollback | Deny | Delegation is subtractive. The parent has rollback authority, but the child does not. |
 | A different key presents the worker's chain | Deny | A valid chain is unusable without proof that the caller is its intended holder. |
 | Worker presents the child without its parent | Deny | The server needs a verifiable path from the child back to a trusted issuer. |
@@ -236,7 +237,7 @@ still runs the complete authorization path.
   `DENIED` audit lines for each authorization decision.
 - [`agents.py`](src/incident_demo/agents.py) defines the OpenAI orchestrator and
   worker-as-tool workflow.
-- [`scenarios.py`](src/incident_demo/scenarios.py) runs the baseline, the six
+- [`scenarios.py`](src/incident_demo/scenarios.py) runs the baseline, the seven
   delegation cases, and the protected-state assertion.
 - [`state.py`](src/incident_demo/state.py) implements the temporary SQLite
   operations state.

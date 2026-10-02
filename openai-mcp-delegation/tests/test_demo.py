@@ -14,10 +14,11 @@ async def test_tool_level_task_scope() -> None:
 
 
 @pytest.mark.asyncio
-async def test_six_mcp_authorization_cases() -> None:
+async def test_seven_mcp_authorization_cases() -> None:
     results = await run_cases(show=False)
     actual = [result.outcome.status for result in results]
     assert actual == [
+        "allowed",
         "allowed",
         "denied",
         "denied",
@@ -25,8 +26,9 @@ async def test_six_mcp_authorization_cases() -> None:
         "denied",
         "denied",
     ]
-    assert "constraint 'service'" in (results[1].outcome.error or "").lower()
-    assert "tool 'rollback_deployment'" in (results[2].outcome.error or "").lower()
-    assert "proof-of-possession" in (results[3].outcome.error or "").lower()
-    assert "issuer is not trusted" in (results[4].outcome.error or "").lower()
-    assert "expired" in (results[5].outcome.error or "").lower()
+    assert '"service": "payments"' in results[0].outcome.text
+    assert "constraint 'service'" in (results[2].outcome.error or "").lower()
+    assert "tool 'rollback_deployment'" in (results[3].outcome.error or "").lower()
+    assert "proof-of-possession" in (results[4].outcome.error or "").lower()
+    assert "issuer is not trusted" in (results[5].outcome.error or "").lower()
+    assert "expired" in (results[6].outcome.error or "").lower()

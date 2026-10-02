@@ -6,7 +6,7 @@ import base64
 import time
 from dataclasses import dataclass
 
-from tenuo import Exact, Pattern, SigningKey, Warrant, encode_warrant_stack
+from tenuo import Exact, OneOf, Pattern, SigningKey, Warrant, encode_warrant_stack
 
 
 @dataclass(frozen=True)
@@ -84,7 +84,10 @@ def create_root_authority() -> RootAuthority:
     root = (
         Warrant.mint_builder()
         .capability("read_metrics", service=Exact("checkout"))
-        .capability("read_deployment", service=Exact("checkout"))
+        .capability(
+            "read_deployment",
+            service=OneOf(["checkout", "payments"]),
+        )
         .capability(
             "rollback_deployment",
             service=Exact("checkout"),
