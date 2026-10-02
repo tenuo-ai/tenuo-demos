@@ -13,3 +13,6 @@ dashboard/dist/
 # _merged is runtime only (created by switch-mode.sh with-tenuo)
 invoice-processing/_merged
 internal/
+
+# Local talk preparation notes
+openai-mcp-delegation/STAGE_NOTES.md
