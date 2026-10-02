@@ -1,3 +1,14 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# EDITED TRANSCRIPT — NOT A RAW RUN LOG
+#
+# This file is an edited illustration used by the blog/tutorial: timestamps,
+# IDs, and spacing have been cleaned up for readability. It is NOT a verbatim
+# capture of `python task.py ...`. Run the script yourself to see the actual
+# output for your environment and model.
+#
+# See: skyvern-prompt-injection/skyvern-config/task.py
+# ─────────────────────────────────────────────────────────────────────────────
+
 $ python task.py clean
 
 [*] Product 4 (ClearTone Ultra): injection REMOVED

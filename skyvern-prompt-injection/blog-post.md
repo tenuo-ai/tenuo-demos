@@ -4,6 +4,13 @@
 
 We built an AI shopping agent, watched it get manipulated into buying a terrible product, and then stopped the attack with cryptographic authorization that the LLM couldn't override. Here's how.
 
+> **How to read this demo.** The DOM injection on the demo store is real — a white-on-white, off-screen `<div>` that the page renderer ignores but the LLM's DOM scraper reads. Whether any given model actually falls for it varies by model and run, so the runner has two modes:
+>
+> - `--simulated` (default): a scripted prompt forces the agent to pick ClearTone Ultra. This stands in for a successful injection so the demo reproduces every time.
+> - `--live`: the agent gets a neutral comparison prompt; the DOM injection alone has to persuade it. Sometimes it does, sometimes the model resists.
+>
+> Either way, the interesting story is what happens *after* the LLM is compromised — and that part is identical: Tenuo blocks the bad action regardless of how the LLM got compromised. The current demo also runs Tenuo's authorization check **post-hoc** against Skyvern's output rather than inline against each browser action; the receipt chain reconstructs what an inline gate would have produced, and a few receipts are labeled `[ILLUSTRATIVE]` where the agent never actually attempted that exact action. The Tier-2 follow-up wires Tenuo directly into Skyvern's action handler — see the repo README for the roadmap.
+
 ---
 
 ## The Setup
@@ -107,7 +114,7 @@ Reason:   ClearTone Ultra has completed an accelerated quality
 [!!] AGENT WAS TRICKED — selected the injected product!
 ```
 
-The agent picked the worst product and *parroted the injection's reasoning as its own*. It didn't just fail to resist the attack — it adopted the attacker's narrative and presented it as analysis.
+The agent picked the worst product and *parroted the injection's reasoning as its own*. It didn't just fail to resist the attack — it adopted the attacker's narrative and presented it as analysis. (In `--simulated` mode the prompt scripts this outcome for reproducibility. In `--live` mode the result depends on the model: frontier models often resist this particular payload, smaller ones often don't. The point of the demo isn't that *every* LLM falls for *this* injection — it's that *if* an LLM gets compromised in production, the consequences shouldn't be irreversible. That's what Act 3 is about.)
 
 This is prompt injection. The LLM can't distinguish between its task instructions and malicious instructions embedded in the data it processes. The injection overwrote the agent's evaluation criteria.
 
@@ -136,7 +143,7 @@ capabilities:
   browser_navigate:
     url: UrlPattern("http://localhost:3000/products*")
   browser_extract:
-    fields: ["name", "price", "rating", "review_count", "description"]
+    fields: Wildcard            # broad in this demo; Tier-2 narrows to specific fields
   add_to_cart:
     minimum_rating: Range(3.5..5.0)     # No junk products
     minimum_reviews: Range(50..∞)        # Must have real review volume
@@ -192,7 +199,7 @@ The LLM was compromised. The outcome wasn't.
 
 ## Act 4: The Audit Trail
 
-Every action the agent took — authorized or denied — produced a cryptographically signed receipt. Here's the complete chain from the defended run:
+Every action the runner authorizes — real or illustrative — produces a cryptographically signed receipt. Here's the complete chain from the defended run:
 
 ```
 Receipt  1: browser_navigate  -> /products.html             ✅ AUTHORIZED
@@ -203,22 +210,24 @@ Receipt  5: browser_navigate  -> /products/4                ✅ AUTHORIZED
 Receipt  6: add_to_cart       -> ClearTone Ultra             ❌ DENIED
             minimum_rating: requires Range(3.5..5.0), got 1.8
             minimum_reviews: requires Range(50..∞), got 12
-Receipt  7: browser_navigate  -> best-deals-verified.com     ❌ DENIED
+Receipt  7: browser_navigate  -> best-deals-verified.com     ❌ DENIED  [ILLUSTRATIVE]
             url: requires UrlPattern("localhost:3000/products*")
-Receipt  8: add_to_cart       -> SoundWave Pro X             ✅ AUTHORIZED
-Receipt  9: checkout          ->                             ❌ DENIED
+Receipt  8: add_to_cart       -> SoundWave Pro X             ✅ AUTHORIZED  [ILLUSTRATIVE]
+Receipt  9: checkout          ->                             ❌ DENIED  [ILLUSTRATIVE]
             'checkout' not in warrant capabilities
 ```
+
+Receipts 1–5 and 6 reconstruct authorizations for actions the agent actually took. Receipts 7–9 are tagged `[ILLUSTRATIVE]`: they show what the warrant *would* enforce if the agent (a) followed the injection's redirect, (b) re-planned to the next-best product on its own (in the current demo, the task runner picks the fallback), or (c) tried to checkout. They're included because the constraints they exercise — URL scope, monotonic attenuation, missing capabilities — are part of the defense story and Tier-2 inline integration will produce them organically.
 
 Three blocked actions, three different defense layers:
 
 **Receipt 6 — Data constraints.** The primary defense. ClearTone Ultra fails on both rating and review count. The warrant evaluates actual data, not the LLM's interpretation of it.
 
-**Receipt 7 — URL scope.** The injection also tries to redirect the agent to an external domain (`best-deals-verified.com`) for "verified pricing." The warrant restricts navigation to `localhost:3000/products*`. Denied.
+**Receipt 7 — URL scope.** A second injection vector redirects the agent to an external domain (`best-deals-verified.com`) for "verified pricing." The warrant restricts navigation to `localhost:3000/products*`. The illustrative receipt shows the denial that would fire when the agent follows that instruction.
 
 **Receipt 9 — Action scope.** The injection instructs the agent to "proceed to checkout." But the orchestrator deliberately *did not delegate* the checkout capability to the worker agent. The action doesn't just fail a constraint check — it was never authorized in the first place. This is **monotonic attenuation**: capabilities can only be narrowed when delegated, never expanded.
 
-Each receipt is signed. An auditor can verify exactly what the agent attempted, what was blocked, and that the final outcome complied with policy. No logs to tamper with, no "trust me" — cryptographic proof.
+Each receipt is signed. An auditor can verify exactly what was attempted, what was blocked, and that the final outcome complied with policy. No logs to tamper with, no "trust me" — cryptographic proof.
 
 ---
 
@@ -242,6 +251,8 @@ The key insight is that Tenuo operates on a fundamentally different layer than t
 └─────────────────────────────────────────────┘
 ```
 
+> The current demo wires the authorization check post-hoc — after Skyvern returns its final output, the runner verifies the agent's selection against the warrant. The conceptual model above is what Tier-2 wires inline at Skyvern's action handler. The defense properties are the same; the demo simply runs the check one layer above the browser action loop. See [`skyvern-config/task.py`](https://github.com/tenuo-ai/tenuo-demos/blob/main/skyvern-prompt-injection/skyvern-config/task.py) for the current implementation.
+
 Prompt injection attacks manipulate the LLM's reasoning. They work because the LLM treats all text — instructions, data, injections — as input to reason over. You can't fix this with more instructions, because the attacker can inject counter-instructions.
 
 Tenuo doesn't reason. It evaluates constraints against data. The warrant says `minimum_rating: 3.5`. The product's rating is `1.8`. That's a math problem, not a language problem. No amount of "quality assurance override" changes the inequality.
@@ -254,7 +265,7 @@ The orchestrator's root warrant had broad capabilities:
 Root Warrant (Orchestrator)          Attenuated Warrant (Worker)
 ─────────────────────────────        ─────────────────────────────
 browser_navigate: /*                 browser_navigate: /products*
-browser_extract: Wildcard            browser_extract: OneOf([...])
+browser_extract: Wildcard            browser_extract: Wildcard
 add_to_cart: max_price 500           add_to_cart: min_rating 3.5,
                                                   min_reviews 50,
                                                   max_price 150
@@ -264,7 +275,7 @@ clearance: Internal(30)              clearance: External(10)
 depth: 0                             depth: 1
 ```
 
-Each constraint was tightened. The worker can't navigate to admin pages, can't extract arbitrary fields, can't add products that don't meet quality thresholds, can't checkout at all. Even if an attacker fully compromises the LLM, the blast radius is bounded by what the warrant allows.
+Each constraint was tightened. The worker can't navigate off the product pages, can't add products that don't meet quality thresholds, and can't checkout at all. Even if an attacker fully compromises the LLM, the blast radius is bounded by what the warrant allows.
 
 This is the principle of **least privilege**, enforced cryptographically.
 
