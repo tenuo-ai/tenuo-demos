@@ -157,6 +157,17 @@ async def run_cases(
 
             await run_case(
                 2,
+                "read outside service scope",
+                "DENY",
+                mcp,
+                authority.delegated_worker,
+                "read_deployment",
+                {"service": "payments"},
+                "The tool is still permitted, but service=payments is outside the task.",
+            )
+
+            await run_case(
+                3,
                 "worker rollback",
                 "DENY",
                 mcp,
@@ -171,7 +182,7 @@ async def run_cases(
                 SigningKey.generate(),
             )
             await run_case(
-                3,
+                4,
                 "stolen chain",
                 "DENY",
                 mcp,
@@ -182,7 +193,7 @@ async def run_cases(
             )
 
             await run_case(
-                4,
+                5,
                 "child without parent",
                 "DENY",
                 mcp,
@@ -206,7 +217,7 @@ async def run_cases(
             )
             await asyncio.sleep(1.2)
             await run_case(
-                5,
+                6,
                 "expired child",
                 "DENY",
                 mcp,
