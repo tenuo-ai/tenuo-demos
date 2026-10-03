@@ -16,7 +16,7 @@ Tenuo Cloud order-repair trigger fired for that order. See tenuo_repair.py.'''
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     if not tenuo_repair.load_issuer_keys():
-        raise SystemExit("No tenuo-issuer.env: run `python tenuo_repair.py keygen` first.")
+        raise SystemExit("No tenuo-issuer.env: run `python create_tenuo_keys.py` first.")
 
     client = await get_temporal_client()
     worker = Worker(

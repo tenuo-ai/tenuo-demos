@@ -33,7 +33,7 @@ poetry install
 cp .env.example .env                 # set LLM_MODEL and LLM_KEY
 temporal server start-dev            # terminal 1
 
-python tenuo_repair.py keygen        # root (keep offline), issuer, worker, tools and approver key files
+python create_tenuo_keys.py          # root (keep offline), issuer, worker, tools and approver key files
 python run_worker.py                 # terminal 2: Josh's agents
 python run_issuer_worker.py          # terminal 3: issues a warrant per order
 python run_repair_tools_worker.py    # terminal 4: the repair tools, warrant required
@@ -44,7 +44,7 @@ python approve_repair_call.py --as store-manager   # then --as finance; add --no
 tenuo receipt chain receipts/repair-tools.jsonl     # verify the signed receipts offline
 ```
 
-`keygen` writes one env file per role (`tenuo-root.env`, `tenuo-issuer.env`, `tenuo-worker.env`, `tenuo-tools.env`, `tenuo-approver-*.env`). They're gitignored. In a real deployment each goes to a different machine, and the root key stays offline; you only need it again to renew the issuer's warrant (`python tenuo_repair.py renew-issuer`).
+`create_tenuo_keys.py` writes one env file per role (`tenuo-root.env`, `tenuo-issuer.env`, `tenuo-worker.env`, `tenuo-tools.env`, `tenuo-approver-*.env`). They're gitignored. In a real deployment each goes to a different machine, and the root key stays offline; you only need it again to renew the issuer's warrant (`python create_tenuo_keys.py --renew-issuer`).
 
 ## What to look for
 

@@ -18,7 +18,7 @@ See tenuo_repair.py.'''
 async def main() -> None:
     logging.basicConfig(level=logging.INFO)
     if not tenuo_repair.load_tools_keys():
-        raise SystemExit("No tenuo-tools.env: run `python tenuo_repair.py keygen` first.")
+        raise SystemExit("No tenuo-tools.env: run `python create_tenuo_keys.py` first.")
 
     client = await get_temporal_client()
     receipts = None

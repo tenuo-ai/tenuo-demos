@@ -269,7 +269,7 @@ async def issue_order_warrant(order_id: str) -> list[str] | None:
     else:
         issuer = Warrant.from_base64(os.environ["TENUO_ISSUER_WARRANT"])
     if issuer.is_expired():
-        raise ApplicationError("The issuer warrant has expired: python tenuo_repair.py renew-issuer",
+        raise ApplicationError("The issuer warrant has expired: python create_tenuo_keys.py --renew-issuer",
                                non_retryable=True)
     warrant = order_repair_template(
         order,
@@ -611,7 +611,7 @@ def _trusted_roots() -> list[PublicKey]:
     """The local root (tenuo-*.env) and, with Tenuo Cloud, the tenant's root key."""
     roots = [k for k in (_public_key("TENUO_TRUSTED_ROOT"), _public_key("TENUO_CLOUD_TRUSTED_ROOT")) if k]
     if not roots:
-        raise RuntimeError("TENUO_TRUSTED_ROOT is not set (python tenuo_repair.py keygen).")
+        raise RuntimeError("TENUO_TRUSTED_ROOT is not set (python create_tenuo_keys.py).")
     return roots
 
 
@@ -735,7 +735,7 @@ def _keygen() -> None:
 
     _write(ROOT_ENV,
            "# Tenuo root key. Keep it offline: it only signs the issuer's warrant\n"
-           "# (python tenuo_repair.py renew-issuer). No worker needs it.\n"
+           "# (python create_tenuo_keys.py --renew-issuer). No worker needs it.\n"
            f"TENUO_ROOT_KEY={_b64(root.secret_key_bytes())}\n"
            + "".join(f"TENUO_APPROVER_{n.upper().replace('-', '_')}={_b64(k.public_key.to_bytes())}\n"
                      for n, k in approvers.items())
@@ -771,11 +771,3 @@ def _renew_issuer() -> None:
     print(f"Wrote {ISSUER_ENV.name}: issuer warrant {warrant.id}, "
           f"valid {ISSUER_WARRANT_TTL // 86400} days. Restart run_issuer_worker.py.")
 
-
-if __name__ == "__main__":
-    import sys
-
-    commands = {"keygen": _keygen, "renew-issuer": _renew_issuer}
-    if len(sys.argv) != 2 or sys.argv[1] not in commands:
-        sys.exit("usage: python tenuo_repair.py keygen | renew-issuer")
-    commands[sys.argv[1]]()
