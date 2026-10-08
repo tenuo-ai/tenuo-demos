@@ -10,7 +10,9 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
   "tenuo>=0.3.2,<0.4",
-  # hermes-tenuo delegation plans (PRs #27-29) — install from the branch until merged.
+  # The delegation-plan feature is in hermes-tenuo PRs #27-#29. Until merged, install
+  # the branch alongside this package (see LIVE.md); pin it here once released:
+  #   "hermes-tenuo>=0.1.4",
   "pyyaml>=6,<7",
   "rich>=13.7,<15",
 ]

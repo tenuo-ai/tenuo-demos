@@ -84,13 +84,46 @@ def main(argv: list[str] | None = None) -> int:
     rp = sub.add_parser("replay", help="run the incident deterministically (no model)")
     rp.add_argument("--unguarded", action="store_true", help="skip the warrant and show the damage")
     sub.add_parser("reset", help="rebuild the simulated world")
+    pr = sub.add_parser("provision", help="mint an incident warrant + plan for a live Hermes run")
+    pr.add_argument("--out", default=".lab/incident", help="directory for the warrant and plan")
     args = parser.parse_args(argv)
     if args.command == "replay":
         return _cmd_replay(args)
     if args.command == "reset":
         return _cmd_reset(args)
+    if args.command == "provision":
+        return _cmd_provision(args)
     parser.print_help()
     return 1
+
+
+def _cmd_provision(args: argparse.Namespace) -> int:
+    """Mint the incident and print the plugin config + .env line for a live run."""
+    import json
+    from pathlib import Path
+
+    from hermes_incident.issuer import Issuer
+
+    alert = {"fingerprint": "a1b2c3d4e5f6",
+             "labels": {"alertname": "HighErrorRate", "service": "checkout",
+                        "namespace": "shop", "severity": "sev1"}}
+    issued = Issuer().mint(alert)
+    out = Path(args.out).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "warrant.b64").write_text(issued.warrant_b64)
+    (out / "plan.json").write_text(json.dumps(issued.plan, indent=2))
+
+    console.print(f"Minted [bold]{issued.incident.incident_id}[/bold] "
+                  f"(TTL {issued.incident.ttl_seconds // 60} min) → {out}\n")
+    console.print("Add to your Hermes [bold]config.yaml[/bold] under plugins.entries.hermes-tenuo:")
+    console.print(f"""[dim]      warrant: {out / 'warrant.b64'}
+      trusted_root: {issued.trusted_root_b64}
+      signing_key_env: TENUO_SIGNING_KEY
+      delegation_plan: {out / 'plan.json'}
+      on_denial: block[/dim]""")
+    console.print(f"\nAnd in your Hermes [bold].env[/bold] (not config.yaml):")
+    console.print(f"[dim]      TENUO_SIGNING_KEY={issued.signing_key_b64}[/dim]")
+    return 0
 
 
 # Console-script entry points for the shims.
