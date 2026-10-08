@@ -136,8 +136,8 @@ def compile_authority(inc: Incident, policy: dict | None = None) -> dict:
     inspector = _role_spec(roles["inspector"], inc)
 
     def tool_entry(spec: dict, *, delegates: bool = True) -> dict:
-        # Hermes's terminal tool always sends a timeout argument; allow it.
-        terminal = {"command": spec, "timeout": {"wildcard": True}}
+        # Hermes's terminal tool always sends a timeout (seconds); bound it.
+        terminal = {"command": spec, "timeout": {"range": [1, 600]}}
         entry = {"terminal": terminal}
         if delegates:
             entry["delegate_task"] = {}

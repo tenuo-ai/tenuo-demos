@@ -83,9 +83,10 @@ model). The *enforcement* is identical regardless of model.
 
 ## Note on the `terminal` tool's arguments
 
-Tenuo is **closed-world**: an argument not named in the warrant is denied. The
-Hermes `terminal` tool always sends `timeout`, so the warrant and plan allow it
-(a wildcard). The tool's *background* mode also sends `background` and
-`session_id`; those are not allowed, so the demo uses foreground commands only.
-Allowing optional-but-unconstrained arguments cleanly is a known limitation of
-closed-world enforcement.
+Tenuo is **closed-world**: an argument not named in the warrant is denied, and
+that is the point — nothing runs unconstrained. The Hermes `terminal` tool
+always sends `timeout` (seconds), so the warrant and plan **bound** it with a
+range (`1..600`, matching Hermes's foreground max). A command asking to run
+longer than policy allows fails closed. The tool's *background* mode also sends
+`background` and `session_id`; the demo does not grant those, so it uses
+foreground commands only.

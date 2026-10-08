@@ -19,10 +19,15 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from tenuo import AnyOf, All, Regex, SigningKey, Warrant, Wildcard
+from tenuo import AnyOf, All, Range, Regex, SigningKey, Warrant
 import tenuo_core
 
 from hermes_incident.policy import Incident, compile_authority, incident_from_alert
+
+
+# Hermes's terminal tool always sends a timeout (seconds); bound it rather
+# than leave it unconstrained. 600s matches Hermes's foreground max.
+TIMEOUT_RANGE = (1, 600)
 
 
 class AlertRejected(ValueError):
@@ -83,7 +88,7 @@ class Issuer:
         warrant = (
             Warrant.mint_builder()
             .holder(agent.public_key)
-            .capability("terminal", command=_command_constraint(auth["commander"]), timeout=Wildcard())
+            .capability("terminal", command=_command_constraint(auth["commander"]), timeout=Range(*TIMEOUT_RANGE))
             .capability("delegate_task")
             .ttl(auth["ttl_seconds"])
             .mint(self._root)
