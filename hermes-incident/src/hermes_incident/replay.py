@@ -16,11 +16,11 @@ from __future__ import annotations
 import base64
 from dataclasses import dataclass
 
+from hermes_tenuo.hermes_guard import HermesGuard
 from tenuo import PublicKey, SigningKey, Warrant
 
 from hermes_incident import shims, world
 from hermes_incident.issuer import Issuer
-from hermes_tenuo.hermes_guard import HermesGuard
 
 
 def _ub(s: str) -> bytes:
@@ -59,8 +59,8 @@ ALERT = {
 
 
 def _run_shim(command: str) -> str:
-    import io
     import contextlib
+    import io
     import shlex
 
     argv = shlex.split(command)

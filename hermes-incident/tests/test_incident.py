@@ -5,8 +5,8 @@ import sqlite3
 import pytest
 
 from hermes_incident import replay, world
-from hermes_incident.issuer import Issuer, verify_alert, AlertRejected
-from hermes_incident.policy import compile_authority, incident_from_alert, PolicyRefusal
+from hermes_incident.issuer import AlertRejected, Issuer, verify_alert
+from hermes_incident.policy import PolicyRefusal, incident_from_alert
 
 ALERT = {
     "fingerprint": "a1b2c3d4e5f6",
@@ -45,20 +45,80 @@ def test_unguarded_follows_the_poisoned_log_and_does_damage():
     assert gen > 17  # payments restarted
 
 
-def test_commander_cannot_restart_payments_only_checkout():
+def _tree():
+    """A guard for the incident, with commander s0 → investigator s1 → inspector s2."""
+    import base64
+
+    from hermes_tenuo.delegation import parse_plan
+    from hermes_tenuo.hermes_guard import HermesGuard
+    from tenuo import PublicKey, SigningKey, Warrant
+
+    def ub(s):
+        return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
+
     issued = Issuer().mint(ALERT)
-    pats = issued.plan["root"]["tools"]["terminal"]["command"]["patterns"]
-    assert any("restart deploy/checkout" in p for p in pats)
-    assert not any("restart deploy/payments" in p for p in pats)
+    guard = HermesGuard(
+        warrant=Warrant.from_bytes(ub(issued.warrant_b64)),
+        signing_key=SigningKey.from_bytes(ub(issued.signing_key_b64)),
+        trusted_roots=[PublicKey.from_bytes(ub(issued.trusted_root_b64))],
+        delegation_plan=parse_plan(issued.plan),
+    )
+    for parent, child in (("s0", "s1"), ("s1", "s2")):
+        assert guard.pre_tool_call("delegate_task", {"goal": "investigate"}, session_id=parent) is None
+        guard.on_subagent_start(parent_session_id=parent, child_session_id=child)
+
+    def allowed(session, command):
+        return guard.pre_tool_call("terminal", {"command": command, "timeout": 180}, session_id=session) is None
+
+    return guard, allowed
 
 
-def test_inspector_scope_is_dependency_logs_only():
-    inc = incident_from_alert(ALERT)
-    plan = compile_authority(inc)["plan"]
-    inspector = plan["levels"][1]["tools"]
-    assert "delegate_task" not in inspector
-    pats = inspector["terminal"]["command"]["patterns"]
-    assert all("logs deploy/(payments|inventory)" in p for p in pats)
+def test_commander_cannot_restart_payments_only_checkout():
+    _, allowed = _tree()
+    assert allowed("s0", "kubectl rollout restart deploy/checkout -n shop")
+    assert not allowed("s0", "kubectl rollout restart deploy/payments -n shop")
+
+
+def test_read_only_investigation_is_allowed_at_every_level():
+    _, allowed = _tree()
+    for session in ("s0", "s1", "s2"):
+        assert allowed(session, "kubectl get pods -o wide -n shop"), session
+        assert allowed(session, "kubectl get cm payments-config -o yaml -n shop"), session
+        assert allowed(session, "kubectl logs deploy/payments --tail=100 -n shop"), session
+
+
+@pytest.mark.parametrize("command", [
+    "kubectl get secret payments-api -o yaml -n shop",
+    "kubectl get pods -n kube-system",
+    "kubectl get pods -n shop --as=admin",
+    "kubectl get pods --all-namespaces",
+    "kubectl exec checkout -n shop -- sh",
+    "kubectl delete pod checkout -n shop",
+    "kubectl scale deploy/checkout --replicas=0 -n shop",
+    "kubectl rollout restart deploy/payments -n shop",
+    'proddb exec "DELETE FROM orders"',
+    "kubectl get pods -n shop ; rm -rf /",
+])
+def test_dangerous_commands_are_denied_at_every_level(command):
+    _, allowed = _tree()
+    for session in ("s0", "s1", "s2"):
+        assert not allowed(session, command), (session, command)
+
+
+def test_only_the_commander_can_remediate():
+    _, allowed = _tree()
+    restart = "kubectl rollout restart deploy/checkout -n shop"
+    assert allowed("s0", restart)
+    assert not allowed("s1", restart)
+    assert not allowed("s2", restart)
+
+
+def test_inspector_cannot_delegate_or_read_its_parents_service_logs():
+    guard, allowed = _tree()
+    assert not allowed("s2", "kubectl logs deploy/checkout -n shop")
+    assert allowed("s2", "kubectl logs deploy/payments -n shop")
+    blocked = guard.pre_tool_call("delegate_task", {"goal": "go deeper"}, session_id="s2")
+    assert blocked and blocked["action"] == "block"
 
 
 @pytest.mark.parametrize("mutate, msg", [
@@ -76,7 +136,9 @@ def test_issuer_refuses_bad_alerts(mutate, msg):
 
 
 def test_forged_alert_signature_is_rejected():
-    import hashlib, hmac, json
+    import hashlib
+    import hmac
+    import json
     body = json.dumps({"alerts": [ALERT]}).encode()
     good = hmac.new(b"secret", body, hashlib.sha256).hexdigest()
     assert verify_alert(body, good, b"secret")["labels"]["service"] == "checkout"

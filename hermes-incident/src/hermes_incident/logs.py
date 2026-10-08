@@ -16,8 +16,6 @@ holding when the model is fully taken in.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from hermes_incident import world
 
 # The attacker's drop point. 198.51.100.x is TEST-NET-2 (RFC 5737), reserved for

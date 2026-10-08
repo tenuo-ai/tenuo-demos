@@ -6,7 +6,16 @@
 # combined with Shlex (one allowed binary, no shell operators). Agents run real
 # shell commands; anything outside these grammars is denied before it runs.
 #
-# Roles nest: inspector ⊂ investigator ⊂ commander. A delegated warrant keeps
+# The grammars are deliberately generous for READ-ONLY work, so an on-call agent
+# can investigate the way an engineer would (-o wide, --sort-by, describe,
+# label selectors, pod names, --tail). What they never allow: secrets, any
+# namespace but the incident's, identity or cluster switching (--as, --context,
+# --kubeconfig), exec / delete / patch / scale / edit / apply, restarting
+# anything but the alerting service, or writing to the database. Tenuo's regex
+# engine has no lookahead, so optional flags are listed explicitly before and
+# after the single "-n {namespace}".
+#
+# Roles nest: inspector in investigator in commander. A delegated warrant keeps
 # every constraint of its parent and adds its own, so a child can never hold
 # something its parent does not.
 match:
@@ -18,22 +27,27 @@ roles:
   commander:
     binaries: [kubectl, proddb]
     commands:
-      - '^kubectl get (pods|deployments|events)( -l app=[a-z0-9-]+)? -n {namespace}$'
-      - '^kubectl logs deploy/({service}|{deps})( --tail=[0-9]{1,4})? -n {namespace}$'
-      - '^kubectl rollout restart deploy/{service} -n {namespace}$'
-      - '^proddb select [a-z_]+ --schema {service}( --limit [0-9]{1,4})?$'
+      # read any non-secret resource (optionally a named one), with safe flags
+      - '^kubectl (get|describe) (pods?|po|deployments?|deploy|replicasets?|rs|services?|svc|endpoints?|ep|events?|ev|configmaps?|cm)( [a-z0-9][a-z0-9.-]{0,62})?( -o (wide|yaml|json|name))?( -l [a-z0-9.-]{1,32}=[a-z0-9.-]{1,63})?( --sort-by=[.A-Za-z0-9]{1,48})?( --show-labels)?( --no-headers)? -n {namespace}$'
+      # read a deployment's logs (the alerting service or its dependencies)
+      - '^kubectl logs deploy/({service}|{deps})( -c [a-z0-9-]{1,40})?( --tail=[0-9]{1,5})?( --since=[0-9]{1,4}[smh])?( --timestamps)? -n {namespace}$'
+      # remediate ONLY the alerting service
+      - '^kubectl rollout (restart|status) deploy/{service} -n {namespace}$'
+      # read-only queries against the alerting service's schema
+      - '^proddb select [a-z_]+ --schema {service}( --where [a-z_]+=[a-z0-9_-]{1,40})?( --limit [0-9]{1,4})?$'
     ttl_fraction: 1.0
 
-  investigator:            # delegated by the commander
+  investigator:            # delegated by the commander; drops remediation
     binaries: [kubectl, proddb]
     commands:
-      - '^kubectl get pods( -l app={service})? -n {namespace}$'
-      - '^kubectl logs deploy/({service}|{deps})( --tail=[0-9]{1,4})? -n {namespace}$'
-      - '^proddb select [a-z_]+ --schema {service}( --limit [0-9]{1,4})?$'
+      - '^kubectl (get|describe) (pods?|po|deployments?|deploy|replicasets?|rs|services?|svc|endpoints?|ep|events?|ev|configmaps?|cm)( [a-z0-9][a-z0-9.-]{0,62})?( -o (wide|yaml|json|name))?( -l [a-z0-9.-]{1,32}=[a-z0-9.-]{1,63})?( --sort-by=[.A-Za-z0-9]{1,48})?( --show-labels)?( --no-headers)? -n {namespace}$'
+      - '^kubectl logs deploy/({service}|{deps})( -c [a-z0-9-]{1,40})?( --tail=[0-9]{1,5})?( --since=[0-9]{1,4}[smh])?( --timestamps)? -n {namespace}$'
+      - '^proddb select [a-z_]+ --schema {service}( --where [a-z_]+=[a-z0-9_-]{1,40})?( --limit [0-9]{1,4})?$'
     ttl_fraction: 0.5
 
-  inspector:               # delegated by the investigator
+  inspector:               # delegated by the investigator; dependency logs only
     binaries: [kubectl]
     commands:
-      - '^kubectl logs deploy/({deps})( --tail=[0-9]{1,4})? -n {namespace}$'
+      - '^kubectl (get|describe) (pods?|po|deployments?|deploy|events?|ev|configmaps?|cm)( [a-z0-9][a-z0-9.-]{0,62})?( -o (wide|yaml|json|name))?( -l [a-z0-9.-]{1,32}=[a-z0-9.-]{1,63})? -n {namespace}$'
+      - '^kubectl logs deploy/({deps})( -c [a-z0-9-]{1,40})?( --tail=[0-9]{1,5})?( --since=[0-9]{1,4}[smh])?( --timestamps)? -n {namespace}$'
     ttl_fraction: 0.2

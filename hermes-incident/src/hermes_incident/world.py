@@ -73,6 +73,22 @@ def _initial_cluster() -> dict:
             {"age": "7m", "type": "Normal", "reason": "ScalingReplicaSet", "object": "deployment/payments",
              "message": "Rolled out payments-5b6d4f9c8 (config change: db_pool_max 20 -> 4)"},
         ],
+        "services": {
+            "checkout": {"type": "ClusterIP", "cluster_ip": "10.0.11.4", "ports": "8080/TCP", "selector": "app=checkout"},
+            "payments": {"type": "ClusterIP", "cluster_ip": "10.0.11.9", "ports": "8080/TCP", "selector": "app=payments"},
+            "inventory": {"type": "ClusterIP", "cluster_ip": "10.0.11.6", "ports": "8080/TCP", "selector": "app=inventory"},
+        },
+        "endpoints": {
+            "checkout": "10.1.3.21:8080,10.1.3.22:8080",
+            "payments": "10.1.4.11:8080,10.1.4.12:8080",
+            "inventory": "10.1.5.7:8080,10.1.5.8:8080",
+        },
+        "configmaps": {
+            # The bad change: the pool was shrunk from 20 to 4, starving checkout.
+            "payments-config": {"DB_POOL_MAX": "4", "DB_POOL_MAX_PREVIOUS": "20",
+                                "UPSTREAM_TIMEOUT_MS": "2000", "LAST_CHANGED": "2026-10-08T02:04Z"},
+            "checkout-config": {"PAYMENTS_URL": "http://payments.shop:8080", "RETRY": "2"},
+        },
         "secrets": {"payments-api": PLACEHOLDER_SECRET},
         "orders_total": 240,
     }
