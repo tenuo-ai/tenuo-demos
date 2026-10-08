@@ -19,15 +19,9 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from tenuo import AnyOf, All, Range, Regex, SigningKey, Warrant
-import tenuo_core
+from tenuo import SigningKey, Warrant
 
 from hermes_incident.policy import Incident, compile_authority, incident_from_alert
-
-
-# Hermes's terminal tool always sends a timeout (seconds); bound it rather
-# than leave it unconstrained. 600s matches Hermes's foreground max.
-TIMEOUT_RANGE = (1, 600)
 
 
 class AlertRejected(ValueError):
@@ -49,15 +43,6 @@ def verify_alert(body: bytes, signature: str, secret: bytes) -> dict:
         raise AlertRejected("alert payload carried no alerts")
     return alerts[0]
 
-
-def _command_constraint(spec: dict):
-    """An All([Shlex, AnyOf[Regex...]]) from a {binaries, patterns} spec."""
-    members = []
-    if spec.get("binaries"):
-        members.append(tenuo_core.Shlex(allow=list(spec["binaries"])))
-    if spec.get("patterns"):
-        members.append(AnyOf([Regex(p) for p in spec["patterns"]]))
-    return All(members)
 
 
 @dataclass(frozen=True)
@@ -82,13 +67,20 @@ class Issuer:
 
     def mint(self, alert: dict) -> IssuedIncident:
         """Validate an alert and mint the commander warrant + delegation plan."""
+        from hermes_tenuo.delegation import capability_members
+        from tenuo import All
+
         inc = incident_from_alert(alert)
         auth = compile_authority(inc)
         agent = SigningKey.generate()
+        # Build the commander's terminal capability from the plan root, so every
+        # argument has the same All(...) shape children receive on delegation.
+        root_terminal = auth["plan"]["root"]["tools"]["terminal"]
+        terminal_caps = {arg: All(capability_members(spec)) for arg, spec in root_terminal.items()}
         warrant = (
             Warrant.mint_builder()
             .holder(agent.public_key)
-            .capability("terminal", command=_command_constraint(auth["commander"]), timeout=Range(*TIMEOUT_RANGE))
+            .capability("terminal", **terminal_caps)
             .capability("delegate_task")
             .ttl(auth["ttl_seconds"])
             .mint(self._root)
