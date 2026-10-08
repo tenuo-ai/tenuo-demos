@@ -135,8 +135,13 @@ def compile_authority(inc: Incident, policy: dict | None = None) -> dict:
     investigator = _role_spec(roles["investigator"], inc)
     inspector = _role_spec(roles["inspector"], inc)
 
-    def tool_entry(spec: dict) -> dict:
-        return {"terminal": {"command": spec}, "delegate_task": {}}
+    def tool_entry(spec: dict, *, delegates: bool = True) -> dict:
+        # Hermes's terminal tool always sends a timeout argument; allow it.
+        terminal = {"command": spec, "timeout": {"wildcard": True}}
+        entry = {"terminal": terminal}
+        if delegates:
+            entry["delegate_task"] = {}
+        return entry
 
     frac = lambda role: policy["roles"][role].get("ttl_fraction", 1.0)
     plan = {
@@ -146,7 +151,7 @@ def compile_authority(inc: Incident, policy: dict | None = None) -> dict:
             {"ttl_seconds": int(inc.ttl_seconds * frac("investigator")),
              "tools": tool_entry(investigator)},
             {"ttl_seconds": int(inc.ttl_seconds * frac("inspector")),
-             "tools": {"terminal": {"command": inspector}}},
+             "tools": tool_entry(inspector, delegates=False)},
         ],
     }
     return {"commander": commander, "plan": plan, "ttl_seconds": inc.ttl_seconds}

@@ -19,7 +19,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from tenuo import AnyOf, All, Regex, SigningKey, Warrant
+from tenuo import AnyOf, All, Regex, SigningKey, Warrant, Wildcard
 import tenuo_core
 
 from hermes_incident.policy import Incident, compile_authority, incident_from_alert
@@ -83,7 +83,7 @@ class Issuer:
         warrant = (
             Warrant.mint_builder()
             .holder(agent.public_key)
-            .capability("terminal", command=_command_constraint(auth["commander"]))
+            .capability("terminal", command=_command_constraint(auth["commander"]), timeout=Wildcard())
             .capability("delegate_task")
             .ttl(auth["ttl_seconds"])
             .mint(self._root)

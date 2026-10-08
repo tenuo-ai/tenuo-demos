@@ -96,7 +96,8 @@ def run(guarded: bool = True) -> list[Decision]:
     )
 
     def attempt(actor: str, session: str, command: str) -> None:
-        blocked = guard.pre_tool_call("terminal", {"command": command}, session_id=session)
+        # Mirror Hermes's terminal tool, which always sends a timeout argument.
+        blocked = guard.pre_tool_call("terminal", {"command": command, "timeout": 300}, session_id=session)
         if blocked is None:
             decisions.append(Decision(actor, command, True, "allowed", _run_shim(command)))
         else:
