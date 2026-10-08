@@ -7,7 +7,7 @@ name = "tenuo-hermes-incident-demo"
 version = "0.1.0"
 description = "A Hermes on-call agent, a poisoned log, and authority bounded by the incident"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
   "tenuo>=0.3.2,<0.4",
   # hermes-tenuo delegation plans (PRs #27-29) — install from the branch until merged.
