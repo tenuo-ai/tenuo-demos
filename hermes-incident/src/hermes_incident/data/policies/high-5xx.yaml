@@ -10,12 +10,13 @@
 # safe output and sort flags in any order, label selectors, pod or deployment
 # logs, rollout status and history. Never allowed: secrets, any namespace but
 # the incident's, identity or cluster switching (--as, --context, --kubeconfig),
-# exec / delete / patch / scale / edit / apply, restarting anything but the
-# alerting service, or writing to the database.
+# exec / delete / patch / scale / edit / apply / set / create, restarting
+# anything but the alerting service, or writing to the database.
 #
-# Tenuo's regex engine has no lookahead, so "exactly one -n {namespace}" is
-# written as two forms: the namespace flag right after `kubectl`, or after the
-# resource. Safe flags (FLAG, LOGFLAG) never include a namespace flag.
+# Namespace: the only namespace token the grammar accepts is "-n {namespace}"
+# (or --namespace {namespace}, with space or =). It may appear in any gap, so
+# the model can place it where it likes; a different namespace matches nowhere
+# and is denied. Tenuo's regex engine has no lookahead, which this avoids.
 #
 # {UPPERCASE} names are fragments, expanded before the incident values.
 # Roles nest: inspector in investigator in commander.
@@ -25,52 +26,43 @@ ttl_minutes_by_severity: {sev1: 60, sev2: 30, sev3: 15}
 max_delegation_depth: 2
 
 fragments:
-  NS: '(?:-n|--namespace)[ =]{namespace}'
+  N: '(?: (?:-n|--namespace)[ =]{namespace})?'   # optional namespace token in a gap
   RES: '(?:pods?|po|deployments?|deploy|replicasets?|rs|services?|svc|endpoints?|ep|events?|ev|configmaps?|cm)'
   NAME: '[a-z0-9][a-z0-9.-]{0,62}'
-  RESREF: '(?:{RES}(?:,{RES})*(?: {NAME})?|{RES}/{NAME})'
   FLAG: ' (?:-o[ =](?:wide|yaml|json|name)|-l[ =][a-z0-9./-]{1,63}=[a-z0-9.-]{1,63}|--selector[ =][a-z0-9./-]{1,63}=[a-z0-9.-]{1,63}|--sort-by[ =][.A-Za-z0-9]{1,64}|--show-labels|--no-headers)'
+  LOGTARGET: '(?:(?:deploy|deployment|pod)/)?(?:{service}|{deps})(?:-[a-z0-9]{1,16}){0,3}'
   LOGFLAG: ' (?:--tail[ =][0-9]{1,5}|--since[ =][0-9]{1,4}[smh]|--timestamps|--all-containers|-c [a-z0-9-]{1,40}|--prefix|-p|--previous)'
-  POD: '(?:-[a-z0-9]{1,16}){0,3}'
-  READ_A: '^kubectl {NS} (?:get|describe) {RESREF}(?:{FLAG})*$'
-  READ_B: '^kubectl (?:get|describe) {RESREF}(?:{FLAG})* {NS}(?:{FLAG})*$'
-  ROLLOUT_A: '^kubectl {NS} rollout (?:status|history) (?:deploy|deployment)/(?:{service}|{deps})(?: --timeout=[0-9]{1,4}s)?$'
-  ROLLOUT_B: '^kubectl rollout (?:status|history) (?:deploy|deployment)/(?:{service}|{deps})(?: --timeout=[0-9]{1,4}s)? {NS}$'
+  # get/describe: a resource (optionally comma-listed or res/name) with namespace
+  # and safe flags interleaved in any gap.
+  READ: '^kubectl{N} (?:get|describe){N} (?:{RES}(?:,{RES})*|{RES}/{NAME}){N}(?: {NAME})?{N}(?:{FLAG}|{N})*$'
+  LOGS: '^kubectl{N} logs{N} {LOGTARGET}{N}(?:{LOGFLAG}|{N})*$'
+  ROLL: '^kubectl{N} rollout (?:status|history){N} (?:deploy|deployment)/(?:{service}|{deps}){N}(?: --timeout=[0-9]{1,4}s)?{N}$'
   DBREAD: '^proddb select [a-z_]+ --schema {service}(?: --where [a-z_]+=[a-z0-9_-]{1,40})?(?: --limit [0-9]{1,4})?$'
 
 roles:
   commander:
     binaries: [kubectl, proddb]
     commands:
-      - '{READ_A}'
-      - '{READ_B}'
-      - '^kubectl {NS} logs (?:(?:deploy|deployment|pod)/)?(?:{service}|{deps}){POD}(?:{LOGFLAG})*$'
-      - '^kubectl logs (?:(?:deploy|deployment|pod)/)?(?:{service}|{deps}){POD}(?:{LOGFLAG})* {NS}(?:{LOGFLAG})*$'
-      - '{ROLLOUT_A}'
-      - '{ROLLOUT_B}'
+      - '{READ}'
+      - '{LOGS}'
+      - '{ROLL}'
       # remediate ONLY the alerting service
-      - '^kubectl {NS} rollout restart (?:deploy|deployment)/{service}$'
-      - '^kubectl rollout restart (?:deploy|deployment)/{service} {NS}$'
+      - '^kubectl{N} rollout restart{N} (?:deploy|deployment)/{service}{N}$'
       - '{DBREAD}'
     ttl_fraction: 1.0
 
   investigator:            # delegated by the commander; drops remediation
     binaries: [kubectl, proddb]
     commands:
-      - '{READ_A}'
-      - '{READ_B}'
-      - '^kubectl {NS} logs (?:(?:deploy|deployment|pod)/)?(?:{service}|{deps}){POD}(?:{LOGFLAG})*$'
-      - '^kubectl logs (?:(?:deploy|deployment|pod)/)?(?:{service}|{deps}){POD}(?:{LOGFLAG})* {NS}(?:{LOGFLAG})*$'
-      - '{ROLLOUT_A}'
-      - '{ROLLOUT_B}'
+      - '{READ}'
+      - '{LOGS}'
+      - '{ROLL}'
       - '{DBREAD}'
     ttl_fraction: 0.5
 
   inspector:               # delegated by the investigator; dependency logs only
     binaries: [kubectl]
     commands:
-      - '{READ_A}'
-      - '{READ_B}'
-      - '^kubectl {NS} logs (?:(?:deploy|deployment|pod)/)?(?:{deps}){POD}(?:{LOGFLAG})*$'
-      - '^kubectl logs (?:(?:deploy|deployment|pod)/)?(?:{deps}){POD}(?:{LOGFLAG})* {NS}(?:{LOGFLAG})*$'
+      - '{READ}'
+      - '^kubectl{N} logs{N} (?:(?:deploy|deployment|pod)/)?(?:{deps})(?:-[a-z0-9]{1,16}){0,3}{N}(?:{LOGFLAG}|{N})*$'
     ttl_fraction: 0.2
