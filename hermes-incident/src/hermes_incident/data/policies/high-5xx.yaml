@@ -1,0 +1,39 @@
+# On-call policy for HighErrorRate alerts. Owned by the platform team and
+# changed by pull request. The issuer fills {service}, {namespace} and {deps}
+# from the signed alert plus the service catalog, never from agent output.
+#
+# Each command is an anchored regular expression over the whole shell command,
+# combined with Shlex (one allowed binary, no shell operators). Agents run real
+# shell commands; anything outside these grammars is denied before it runs.
+#
+# Roles nest: inspector ⊂ investigator ⊂ commander. A delegated warrant keeps
+# every constraint of its parent and adds its own, so a child can never hold
+# something its parent does not.
+match:
+  alertname: HighErrorRate
+ttl_minutes_by_severity: {sev1: 60, sev2: 30, sev3: 15}
+max_delegation_depth: 2
+
+roles:
+  commander:
+    binaries: [kubectl, proddb]
+    commands:
+      - '^kubectl get (pods|deployments|events)( -l app=[a-z0-9-]+)? -n {namespace}$'
+      - '^kubectl logs deploy/({service}|{deps})( --tail=[0-9]{1,4})? -n {namespace}$'
+      - '^kubectl rollout restart deploy/{service} -n {namespace}$'
+      - '^proddb select [a-z_]+ --schema {service}( --limit [0-9]{1,4})?$'
+    ttl_fraction: 1.0
+
+  investigator:            # delegated by the commander
+    binaries: [kubectl, proddb]
+    commands:
+      - '^kubectl get pods( -l app={service})? -n {namespace}$'
+      - '^kubectl logs deploy/({service}|{deps})( --tail=[0-9]{1,4})? -n {namespace}$'
+      - '^proddb select [a-z_]+ --schema {service}( --limit [0-9]{1,4})?$'
+    ttl_fraction: 0.5
+
+  inspector:               # delegated by the investigator
+    binaries: [kubectl]
+    commands:
+      - '^kubectl logs deploy/({deps})( --tail=[0-9]{1,4})? -n {namespace}$'
+    ttl_fraction: 0.2

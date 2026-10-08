@@ -1,0 +1,20 @@
+# Service catalog for the fictional Acme Shop (Backstage-style).
+# The issuer reads ownership and dependencies from here, never from the alert
+# body or from anything an agent says.
+namespace: shop
+services:
+  checkout:
+    owner: team-storefront
+    deployment: checkout
+    schema: checkout
+    depends_on: [payments, inventory]
+  payments:
+    owner: team-payments
+    deployment: payments
+    schema: payments
+    depends_on: []
+  inventory:
+    owner: team-storefront
+    deployment: inventory
+    schema: inventory
+    depends_on: []

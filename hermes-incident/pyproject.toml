@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tenuo-hermes-incident-demo"
+version = "0.1.0"
+description = "A Hermes on-call agent, a poisoned log, and authority bounded by the incident"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "tenuo>=0.3.2,<0.4",
+  "pyyaml>=6,<7",
+  "rich>=13.7,<15",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10"]
+
+[project.scripts]
+hermes-incident = "hermes_incident.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hermes_incident"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
