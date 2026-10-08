@@ -101,13 +101,27 @@ def incident_from_alert(alert: dict, *, catalog: dict | None = None,
     )
 
 
-def _render(pattern: str, inc: Incident) -> str:
-    """Fill {service}, {namespace}, {deps} in one command pattern.
+_FRAGMENT = re.compile(r"\{([A-Z][A-Z_]*)\}")
+
+
+def _expand_fragments(pattern: str, fragments: dict) -> str:
+    """Expand {UPPERCASE} fragment names (nested allowed, depth-limited)."""
+    for _ in range(8):
+        expanded = _FRAGMENT.sub(lambda m: fragments[m.group(1)], pattern)
+        if expanded == pattern:
+            return pattern
+        pattern = expanded
+    raise ValueError("policy fragments nest too deeply")
+
+
+def _render(pattern: str, inc: Incident, fragments: dict | None = None) -> str:
+    """Fill fragments, then {service}, {namespace}, {deps} in one command pattern.
 
     {deps} becomes a regex alternation of the service's catalog dependencies.
     A pattern that references {deps} when the service has none is dropped — a
     leaf service grants no dependency-read rule rather than an empty one.
     """
+    pattern = _expand_fragments(pattern, fragments or {})
     if "{deps}" in pattern and not inc.deps:
         return ""
     deps_alt = "|".join(re.escape(d) for d in inc.deps)
@@ -117,9 +131,9 @@ def _render(pattern: str, inc: Incident) -> str:
             .replace("{deps}", deps_alt))
 
 
-def _role_spec(role: dict, inc: Incident) -> dict:
+def _role_spec(role: dict, inc: Incident, fragments: dict | None = None) -> dict:
     """One role's {binaries, patterns}, rendered for this incident."""
-    patterns = [p for p in (_render(c, inc) for c in role.get("commands", [])) if p]
+    patterns = [p for p in (_render(c, inc, fragments) for c in role.get("commands", [])) if p]
     return {"binaries": list(role.get("binaries", [])), "patterns": patterns}
 
 
@@ -131,9 +145,10 @@ def compile_authority(inc: Incident, policy: dict | None = None) -> dict:
     """
     policy = policy if policy is not None else load_policy(inc.policy_name)
     roles = policy["roles"]
-    commander = _role_spec(roles["commander"], inc)
-    investigator = _role_spec(roles["investigator"], inc)
-    inspector = _role_spec(roles["inspector"], inc)
+    fragments = policy.get("fragments") or {}
+    commander = _role_spec(roles["commander"], inc, fragments)
+    investigator = _role_spec(roles["investigator"], inc, fragments)
+    inspector = _role_spec(roles["inspector"], inc, fragments)
 
     def tool_entry(spec: dict, *, delegates: bool = True) -> dict:
         # Hermes's terminal tool always sends a timeout (seconds); bound it.

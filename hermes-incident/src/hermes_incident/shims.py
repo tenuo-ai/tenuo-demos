@@ -34,20 +34,44 @@ _ALIAS = {
 }
 
 
+def _selector_matches(app: str, selector: str | None) -> bool:
+    """Only app=<name> selectors are modelled; anything else matches nothing."""
+    if selector is None:
+        return True
+    key, _, value = selector.partition("=")
+    return key == "app" and value == app
+
+
 def _get_or_describe(verb: str, rest: list[str], cluster: dict, ns: str) -> int:
-    """Handle `kubectl get|describe <resource> [name] [flags]` for read-only types."""
+    """Handle `kubectl get|describe <res>[,<res>] [name] | <res>/<name> [flags]`."""
     if not rest:
         print("error: no resource specified", file=sys.stderr)
         return 1
-    kind = _ALIAS.get(rest[0])
+    head = rest[0]
+    if "/" in head:
+        token, name = head.split("/", 1)
+        tokens = [token]
+    else:
+        tokens = head.split(",")
+        name = rest[1] if len(rest) > 1 and not rest[1].startswith("-") else None
+    selector = _flag_value(rest, "-l", "--selector")
+    status = 0
+    for i, token in enumerate(tokens):
+        if i:
+            print()
+        status |= _show(token, name, selector, cluster, ns)
+    return status
+
+
+def _show(token: str, name: str | None, selector: str | None, cluster: dict, ns: str) -> int:
+    kind = _ALIAS.get(token)
     if kind is None:
-        print(f"error: the server doesn't have a resource type {rest[0]!r}", file=sys.stderr)
+        print(f"error: the server doesn't have a resource type {token!r}", file=sys.stderr)
         return 1
-    # An optional name is the next bare (non-flag) token.
-    name = rest[1] if len(rest) > 1 and not rest[1].startswith("-") else None
 
     if kind == "pods":
-        rows = [p for p in cluster["pods"] if name is None or p["name"] == name]
+        rows = [p for p in cluster["pods"]
+                if (name is None or p["name"] == name) and _selector_matches(p["app"], selector)]
         print(f"{'NAME':32} {'READY':6} {'STATUS':10} {'RESTARTS':9} AGE")
         for p in rows:
             print(f"{p['name']:32} {p['ready']:6} {p['status']:10} {p['restarts']:<9} {p['age']}")
@@ -56,21 +80,21 @@ def _get_or_describe(verb: str, rest: list[str], cluster: dict, ns: str) -> int:
         items = cluster["deployments"].items()
         print(f"{'NAME':12} {'READY':8} {'UP-TO-DATE':11} IMAGE")
         for n, d in items:
-            if name and n != name:
+            if (name and n != name) or not _selector_matches(n, selector):
                 continue
             print(f"{n:12} {str(d['ready'])+'/'+str(d['replicas']):8} {d['replicas']:<11} {d['image']}")
         return 0
     if kind == "services":
         print(f"{'NAME':12} {'TYPE':11} {'CLUSTER-IP':14} {'PORT(S)':12} SELECTOR")
         for n, s in cluster.get("services", {}).items():
-            if name and n != name:
+            if (name and n != name) or not _selector_matches(n, selector):
                 continue
             print(f"{n:12} {s['type']:11} {s['cluster_ip']:14} {s['ports']:12} {s['selector']}")
         return 0
     if kind == "endpoints":
         print(f"{'NAME':12} ENDPOINTS")
         for n, e in cluster.get("endpoints", {}).items():
-            if name and n != name:
+            if (name and n != name) or not _selector_matches(n, selector):
                 continue
             print(f"{n:12} {e}")
         return 0
@@ -104,25 +128,76 @@ def _get_or_describe(verb: str, rest: list[str], cluster: dict, ns: str) -> int:
     return 1
 
 
+def _strip_namespace(argv: list[str]) -> list[str]:
+    """Drop -n/--namespace wherever they appear (the warrant already pinned it)."""
+    out, i = [], 0
+    while i < len(argv):
+        a = argv[i]
+        if a in ("-n", "--namespace"):
+            i += 2
+            continue
+        if a.startswith(("--namespace=", "-n=")):
+            i += 1
+            continue
+        out.append(a)
+        i += 1
+    return out
+
+
+def _flag_value(argv: list[str], *names: str) -> str | None:
+    for i, a in enumerate(argv):
+        for n in names:
+            if a == n and i + 1 < len(argv):
+                return argv[i + 1]
+            if a.startswith(n + "="):
+                return a.split("=", 1)[1]
+    return None
+
+
+def _deployment_for(target: str, cluster: dict) -> str | None:
+    """Resolve deploy/X, deployment/X, pod/X or a bare pod name to a deployment."""
+    name = target.split("/", 1)[1] if "/" in target else target
+    for d in cluster["deployments"]:
+        if name == d or name.startswith(d + "-"):
+            return d
+    return None
+
+
 def _kubectl(argv: list[str]) -> int:
     p = world.paths()
     cluster = world.load_cluster(p)
     ns = cluster["namespace"]
+    argv = _strip_namespace(argv)
 
     if argv[:1] in (["get"], ["describe"]):
         return _get_or_describe(argv[0], argv[1:], cluster, ns)
 
-    if argv[:1] == ["logs"] and len(argv) > 1 and argv[1].startswith("deploy/"):
-        deployment = argv[1].split("/", 1)[1]
-        log_file = _logs_path(p, deployment)
-        if not log_file.exists():
-            print(f"Error from server (NotFound): deployments.apps {deployment!r} not found", file=sys.stderr)
+    if argv[:1] == ["logs"] and len(argv) > 1:
+        deployment = _deployment_for(argv[1], cluster)
+        log_file = _logs_path(p, deployment) if deployment else None
+        if log_file is None or not log_file.exists():
+            print(f"Error from server (NotFound): pods {argv[1]!r} not found", file=sys.stderr)
             return 1
-        sys.stdout.write(log_file.read_text())
+        lines = log_file.read_text().splitlines(keepends=True)
+        tail = _flag_value(argv, "--tail")
+        if tail and tail.isdigit():
+            lines = lines[-int(tail):]
+        sys.stdout.write("".join(lines))
         return 0
 
-    if argv[:2] == ["rollout", "status"] and len(argv) > 2 and argv[2].startswith("deploy/"):
-        name = argv[2].split("/", 1)[1]
+    if argv[:2] == ["rollout", "history"] and len(argv) > 2:
+        name = _deployment_for(argv[2], cluster)
+        d = cluster["deployments"].get(name or "")
+        if d is None:
+            print(f"Error from server (NotFound): deployments.apps {argv[2]!r} not found", file=sys.stderr)
+            return 1
+        print(f"deployment.apps/{name}\nREVISION  CHANGE-CAUSE")
+        for rev in range(max(1, d["generation"] - 2), d["generation"] + 1):
+            print(f"{rev:<9} <none>")
+        return 0
+
+    if argv[:2] == ["rollout", "status"] and len(argv) > 2:
+        name = _deployment_for(argv[2], cluster) or argv[2]
         d = cluster["deployments"].get(name)
         if d is None:
             print(f"Error from server (NotFound): deployments.apps {name!r} not found", file=sys.stderr)
@@ -133,8 +208,8 @@ def _kubectl(argv: list[str]) -> int:
             print(f'Waiting for deployment "{name}" rollout: {d["ready"]} of {d["replicas"]} updated replicas are available...')
         return 0
 
-    if argv[:2] == ["rollout", "restart"] and len(argv) > 2 and argv[2].startswith("deploy/"):
-        deployment = argv[2].split("/", 1)[1]
+    if argv[:2] == ["rollout", "restart"] and len(argv) > 2:
+        deployment = _deployment_for(argv[2], cluster) or argv[2]
         d = cluster["deployments"].get(deployment)
         if d is None:
             print(f"Error from server (NotFound): deployments.apps {deployment!r} not found", file=sys.stderr)
