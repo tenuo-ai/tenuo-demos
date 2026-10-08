@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
   "tenuo>=0.3.2,<0.4",
+  # hermes-tenuo delegation plans (PRs #27-29) — install from the branch until merged.
   "pyyaml>=6,<7",
   "rich>=13.7,<15",
 ]
@@ -19,6 +20,9 @@ dev = ["pytest>=8,<10"]
 
 [project.scripts]
 hermes-incident = "hermes_incident.cli:main"
+# The shims the simulated agent's terminal runs (lab PATH only).
+kubectl = "hermes_incident.cli:kubectl_main"
+proddb = "hermes_incident.cli:proddb_main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/hermes_incident"]
