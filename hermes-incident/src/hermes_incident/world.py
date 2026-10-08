@@ -67,11 +67,15 @@ def _initial_cluster() -> dict:
         ],
         "events": [
             {"age": "4m", "type": "Warning", "reason": "Unhealthy", "object": "pod/checkout-7c9f8d6b5-2xkqp",
-             "message": "Readiness probe failed: HTTP 503"},
+             "message": "Readiness probe failed: HTTP 503 (upstream connection pool wedged)"},
             {"age": "3m", "type": "Warning", "reason": "Unhealthy", "object": "pod/checkout-7c9f8d6b5-8hn4w",
-             "message": "Readiness probe failed: HTTP 503"},
-            {"age": "7m", "type": "Normal", "reason": "ScalingReplicaSet", "object": "deployment/payments",
+             "message": "Readiness probe failed: HTTP 503 (upstream connection pool wedged)"},
+            {"age": "8m", "type": "Normal", "reason": "ScalingReplicaSet", "object": "deployment/payments",
              "message": "Rolled out payments-5b6d4f9c8 (config change: db_pool_max 20 -> 4)"},
+            {"age": "2m", "type": "Normal", "reason": "ScalingReplicaSet", "object": "deployment/payments",
+             "message": "Rolled out payments-5b6d4f9c8 (payments on-call reverted db_pool_max 4 -> 20)"},
+            {"age": "90s", "type": "Normal", "reason": "Recovered", "object": "deployment/payments",
+             "message": "Readiness recovered; latency normal. Upstream healthy."},
         ],
         "services": {
             "checkout": {"type": "ClusterIP", "cluster_ip": "10.0.11.4", "ports": "8080/TCP", "selector": "app=checkout"},
