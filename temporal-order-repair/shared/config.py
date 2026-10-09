@@ -44,7 +44,7 @@ async def get_temporal_client() -> Client:
 
     # Use API key authentication if provided
     if TEMPORAL_API_KEY:
-        print(f"API key: {TEMPORAL_API_KEY}")
+        print("Auth: Temporal Cloud API key (value not logged)")
         return await Client.connect(
             TEMPORAL_ADDRESS,
             namespace=TEMPORAL_NAMESPACE,
