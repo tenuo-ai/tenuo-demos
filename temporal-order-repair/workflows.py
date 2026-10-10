@@ -10,6 +10,7 @@ from temporalio.exceptions import ActivityError, ApplicationError
 with workflow.unsafe.imports_passed_through():
     from activities import analyze, detect, plan_repair, notify, execute_repairs, report, \
         single_tool_repair, process_order, single_agent_repair, load_data, report_with_original_data
+    import tenuo_repair
 
 ITERATIONS_BEFORE_CONTINUE_AS_NEW = 10  # Number of iterations before exiting the workflow
 
@@ -165,6 +166,12 @@ class RepairAgentWorkflow:
         This function executes the repair activity and updates the context with the repair result.
         """
         self.set_workflow_status("PENDING-REPAIR")
+        if await workflow.execute_local_activity(tenuo_repair.tenuo_mode,
+                                                 start_to_close_timeout=timedelta(seconds=5)):
+            # Optional Tenuo warrants: each planned tool runs as its own Activity on the repair-tools
+            # worker, with a warrant issued for its order now (see tenuo_repair.py).
+            self.context["repair_result"] = await tenuo_repair.execute_warranted_repairs(self.context)
+            return
         self.context["repair_result"] = await workflow.execute_activity(
             execute_repairs,
             self.context,
@@ -200,6 +207,11 @@ class RepairAgentWorkflow:
         if approver is None or approver == "":
             approver = self.context.get("metadata", {}).get("user", "unknown")
         self.context["approved_by"] = approver
+
+    @workflow.signal(name=tenuo_repair.APPROVAL_SIGNAL)
+    async def ToolCallDecision(self, decision: dict) -> None:
+        # Optional Tenuo warrants: an approver's decision on one gated tool call (see tenuo_repair.py).
+        tenuo_repair.record_decision(self.context, decision)
 
     @workflow.signal
     async def RejectRepair(self, rejecter: str) -> None:
