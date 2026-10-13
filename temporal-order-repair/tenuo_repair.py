@@ -713,8 +713,11 @@ def repair_tools_worker_plugin(
 # --- keygen ----------------------------------------------------------------------------------
 
 def _write(path: Path, text: str) -> None:
-    path.write_text(text)
-    path.chmod(0o600)
+    # Create the file owner-only, so a secret key is never readable by others, even briefly.
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    path.chmod(0o600)  # if it already existed with looser permissions
 
 
 def _write_issuer_env(root_key: SigningKey, issuer: SigningKey, holder_public: PublicKey,
