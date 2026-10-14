@@ -32,6 +32,12 @@ def _b64(raw: bytes) -> str:
     return base64.urlsafe_b64encode(raw).decode()
 
 
+def _b64_key(raw: bytes) -> str:
+    # The hermes-tenuo plugin reads the warrant as URL-safe base64 but the
+    # signing key and trusted root as standard base64.
+    return base64.b64encode(raw).decode()
+
+
 def verify_alert(body: bytes, signature: str, secret: bytes) -> dict:
     """Check the Alertmanager HMAC and return the first alert, or raise."""
     expected = hmac.new(secret, body, hashlib.sha256).hexdigest()
@@ -63,7 +69,7 @@ class Issuer:
 
     @property
     def trusted_root_b64(self) -> str:
-        return _b64(self._root.public_key.to_bytes())
+        return _b64_key(self._root.public_key.to_bytes())
 
     def mint(self, alert: dict) -> IssuedIncident:
         """Validate an alert and mint the commander warrant + delegation plan."""
@@ -89,7 +95,7 @@ class Issuer:
             incident=inc,
             warrant_b64=_b64(warrant.to_bytes()),
             trusted_root_b64=self.trusted_root_b64,
-            signing_key_b64=_b64(agent.secret_key_bytes()),
+            signing_key_b64=_b64_key(agent.secret_key_bytes()),
             plan=auth["plan"],
         )
 

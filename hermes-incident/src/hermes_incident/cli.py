@@ -120,9 +120,9 @@ def _cmd_provision(args: argparse.Namespace) -> int:
       trusted_root: {issued.trusted_root_b64}
       signing_key_env: TENUO_SIGNING_KEY
       delegation_plan: {out / 'plan.json'}
-      on_denial: block[/dim]""")
+      on_denial: block[/dim]""", soft_wrap=True)
     console.print("\nAnd in your Hermes [bold].env[/bold] (not config.yaml):")
-    console.print(f"[dim]      TENUO_SIGNING_KEY={issued.signing_key_b64}[/dim]")
+    console.print(f"[dim]      TENUO_SIGNING_KEY={issued.signing_key_b64}[/dim]", soft_wrap=True)
     return 0
 
 

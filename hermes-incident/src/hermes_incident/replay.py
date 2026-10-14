@@ -90,8 +90,8 @@ def run(guarded: bool = True) -> list[Decision]:
     issued = Issuer().mint(ALERT)
     guard = HermesGuard(
         warrant=Warrant.from_bytes(_ub(issued.warrant_b64)),
-        signing_key=SigningKey.from_bytes(_ub(issued.signing_key_b64)),
-        trusted_roots=[PublicKey.from_bytes(_ub(issued.trusted_root_b64))],
+        signing_key=SigningKey.from_bytes(base64.b64decode(issued.signing_key_b64)),
+        trusted_roots=[PublicKey.from_bytes(base64.b64decode(issued.trusted_root_b64))],
         delegation_plan=_plan(issued.plan),
     )
 

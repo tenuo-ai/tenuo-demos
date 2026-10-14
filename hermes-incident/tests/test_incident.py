@@ -144,3 +144,28 @@ def test_forged_alert_signature_is_rejected():
     assert verify_alert(body, good, b"secret")["labels"]["service"] == "checkout"
     with pytest.raises(AlertRejected):
         verify_alert(body, "deadbeef", b"secret")
+
+
+@pytest.mark.parametrize("attempt", range(8))
+def test_provisioned_keys_load_in_the_plugin(attempt, tmp_path, monkeypatch):
+    """The issued config, read by the plugin's own loader as a live Hermes would.
+
+    Random keys often contain characters that differ between base64 alphabets,
+    so this runs several times.
+    """
+    import yaml
+    from types import SimpleNamespace
+
+    from hermes_tenuo._config import get_signing_key, get_trusted_roots
+
+    from hermes_incident.issuer import Issuer, write_incident
+
+    issued = Issuer().mint(ALERT)
+    entry = write_incident(issued, tmp_path / "lab", plan_path=tmp_path / "lab" / "plan.json")
+    (tmp_path / "config.yaml").write_text(yaml.safe_dump({"plugins": {"entries": {"hermes-tenuo": entry}}}))
+    monkeypatch.setenv("HERMES_HOME", str(tmp_path))
+    monkeypatch.setenv("TENUO_SIGNING_KEY", issued.signing_key_b64)
+
+    ctx = SimpleNamespace()
+    assert get_signing_key(ctx) is not None
+    assert get_trusted_roots(ctx)
