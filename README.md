@@ -8,6 +8,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 |------|--------------|
 | [**Invoice Processing**](invoice-processing/) | A multi-agent pipeline processes invoices. A prompt injection redirects a payment to the wrong bank account. Traditional auth (OAuth, RBAC, policy engines) all approve. Tenuo blocks it. |
 | [**Skyvern Prompt Injection**](skyvern-prompt-injection/) | An AI shopping agent browses an e-commerce store. A hidden prompt injection tricks it into buying a terrible product. Tenuo's warrant constraints block the bad purchase — the LLM is compromised but the outcome isn't. |
+| [**LangChain Task Authority**](langchain-task-authority/) | A LangChain support agent answers one customer's ticket. A hidden instruction in the ticket asks for other customers' records. Tenuo allows the lookup for that customer and blocks the rest before the tool runs. One command, no API key. |
 | [**Temporal Incident Response**](temporal-incident-response/) | An AI on-call agent triages a production incident as a Temporal workflow. Investigation runs autonomously; the production restart is gated by a cryptographically signed human approval; the receipt chain is offline-verifiable end-to-end. |
 | [**OpenAI + MCP Delegation**](openai-mcp-delegation/) | An OpenAI orchestrator delegates incident investigation to a worker. The worker keeps a deployment-read tool with narrower service arguments, while the server also rejects an undelegated rollback, a stolen chain, a detached child warrant, and an expired grant. |
 
