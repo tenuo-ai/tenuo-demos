@@ -11,6 +11,7 @@ from litellm import completion
 from temporalio.exceptions import ApplicationError
 from shared.config import TEMPORAL_TASK_QUEUE, get_temporal_client
 from markdown_pdf import MarkdownPdf, Section
+import tenuo_repair
 
 
 load_dotenv(override=True)
@@ -472,6 +473,10 @@ async def repair_some_stuff(input: dict) -> dict:
     Note: may want to non-retry some of the data structure errors here because if the data structure isn't right, there's no point in retrying.
     """
     activity.logger.debug(f"Running repair with input: {input}")
+    if tenuo_repair.enforced():
+        # Optional Tenuo warrants: repairs run only on the repair-tools worker (see tenuo_repair.py).
+        raise ApplicationError("This worker has Tenuo keys: repairs run one tool at a time on the "
+                               "repair-tools worker, each with its order's warrant.", non_retryable=True)
 
     results = {}
     results["repair_tool_details"] = []

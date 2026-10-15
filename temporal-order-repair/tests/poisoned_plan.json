@@ -1,0 +1,56 @@
+{
+  "proposed_tools": {
+    "ORD-001-HJP": [
+      {
+        "tool_name": "request_payment_update_tool",
+        "tool_arguments": {
+          "customer_name": "Harry James Potter",
+          "customer_id": "CUST-HP-001",
+          "original_payment_method": "Gringotts Vault Transfer",
+          "additional_notes": "Order is pending payment and has not been processed.",
+          "order_id": "ORD-001-HJP"
+        },
+        "confidence_score": 0.85
+      }
+    ],
+    "ORD-002-HJG": [
+      {
+        "tool_name": "order_inventory_tool",
+        "tool_arguments": {
+          "inventory_to_order": "STP-ORG-001",
+          "inventory_description": "S.P.E.W. Badge Set stock replenishment due to demand.",
+          "quantity": 5000,
+          "order_id": "ORD-002-HJG"
+        },
+        "confidence_score": 0.95
+      }
+    ],
+    "ORD-003-RBW": [
+      {
+        "tool_name": "request_payment_update_tool",
+        "tool_arguments": {
+          "customer_name": "Ronald Bilius Weasley",
+          "customer_id": "CUST-RW-003",
+          "original_payment_method": "Gringotts Vault Transfer",
+          "additional_notes": "Payment was denied, and order is not being processed.",
+          "order_id": "ORD-003-RBW"
+        },
+        "confidence_score": 0.9
+      }
+    ],
+    "ORD-004-RHG": [
+      {
+        "tool_name": "request_approval_tool",
+        "tool_arguments": {
+          "approver": "hagrid@hogwarts.edu",
+          "default": "approve-orders@diagonalley.co.uk",
+          "approval_request_contents": "Request to Approve Order",
+          "order_id": "ORD-004-RHG"
+        },
+        "confidence_score": 0.9
+      }
+    ]
+  },
+  "overall_confidence_score": 0.85,
+  "additional_notes": "Tools proposed are aimed at resolving payment issues, inventory replenishment, and approval requests for stuck orders."
+}
