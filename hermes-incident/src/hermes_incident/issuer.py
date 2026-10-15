@@ -82,7 +82,13 @@ class Issuer:
         # Build the commander's terminal capability from the plan root, so every
         # argument has the same All(...) shape children receive on delegation.
         root_terminal = auth["plan"]["root"]["tools"]["terminal"]
-        terminal_caps = {arg: All(capability_members(spec)) for arg, spec in root_terminal.items()}
+        terminal_caps = {
+            arg: All(capability_members(spec))
+            for arg, spec in root_terminal.items()
+            if arg != "_allow_unknown"
+        }
+        if root_terminal.get("_allow_unknown") is True:
+            terminal_caps["_allow_unknown"] = True
         warrant = (
             Warrant.mint_builder()
             .holder(agent.public_key)

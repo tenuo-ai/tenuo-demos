@@ -169,3 +169,26 @@ def test_provisioned_keys_load_in_the_plugin(attempt, tmp_path, monkeypatch):
     ctx = SimpleNamespace()
     assert get_signing_key(ctx) is not None
     assert get_trusted_roots(ctx)
+
+
+def test_hermes_terminal_call_shapes_are_checked_on_the_command():
+    """Hermes 0.19 sends timeout, workdir or pty on some terminal calls and not others."""
+    guard, _ = _tree()
+    shapes = [
+        {},
+        {"timeout": 180},
+        {"timeout": 180, "workdir": "/tmp/incident"},
+        {"pty": True},
+    ]
+    for session in ("s0", "s1", "s2"):
+        for extra in shapes:
+            ok = guard.pre_tool_call(
+                "terminal", {"command": "kubectl get pods -n shop", **extra}, session_id=session
+            )
+            assert ok is None, (session, extra, ok)
+            bad = guard.pre_tool_call(
+                "terminal",
+                {"command": 'proddb exec "DELETE FROM orders"', **extra},
+                session_id=session,
+            )
+            assert bad is not None, (session, extra)

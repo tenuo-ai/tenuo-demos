@@ -151,8 +151,12 @@ def compile_authority(inc: Incident, policy: dict | None = None) -> dict:
     inspector = _role_spec(roles["inspector"], inc, fragments)
 
     def tool_entry(spec: dict, *, delegates: bool = True) -> dict:
-        # Hermes's terminal tool always sends a timeout (seconds); bound it.
-        terminal = {"command": spec, "timeout": {"range": [1, 600]}}
+        # The command is what carries authority, so it is the one argument
+        # checked. Hermes's terminal tool sends other arguments only on some
+        # calls (timeout, workdir, pty), and a named argument is required, so
+        # those are allowed unnamed rather than listed. Tighten this once
+        # optional-argument constraints land (tenuo-ai/tenuo#910).
+        terminal = {"command": spec, "_allow_unknown": True}
         entry = {"terminal": terminal}
         if delegates:
             entry["delegate_task"] = {}

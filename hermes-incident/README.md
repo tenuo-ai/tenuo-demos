@@ -78,8 +78,8 @@ placeholder.
 
 ```bash
 uv pip install -e .
-# the delegation-plan feature is in hermes-tenuo PRs #27-#29; until merged:
-uv pip install "hermes-tenuo @ git+https://github.com/tenuo-ai/hermes-tenuo@feat/child-keys"
+# the delegation-plan feature is in hermes-tenuo PRs #28, #29 and #32; until merged:
+uv pip install "hermes-tenuo @ git+https://github.com/tenuo-ai/hermes-tenuo@fix/child-warrant-and-closed-world"
 
 hermes-incident replay              # guarded — the warrant holds
 hermes-incident replay --unguarded  # baseline — the damage
