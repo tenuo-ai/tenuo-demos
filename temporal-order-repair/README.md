@@ -17,31 +17,40 @@ Josh's original README, with the full walkthrough of the agents, MCP setup and t
 - With Tenuo turned on, the workflow worker refuses to run repairs inline, so every tool call goes through the check. Without Tenuo's key files, the demo runs exactly as Josh wrote it.
 - [`poison_order_notes.py`](./poison_order_notes.py) edits two customer notes to show what the warrants stop: Hagrid asks for the approval request to go to him, and Hermione asks for 5,000 badge sets.
 
-The Workflow change is small; see `execute_repair` and the `ToolCallDecision` Signal in [`workflows.py`](./workflows.py). Everything else lives in [`tenuo_repair.py`](./tenuo_repair.py).
+### Where to look in the code
+
+The Workflow change is small. Everything else lives in [`tenuo_repair.py`](./tenuo_repair.py).
+
+- [`execute_repair`](./workflows.py#L163) in `workflows.py`: with Tenuo on, the repairs go through `execute_warranted_repairs` instead of Josh's single repair Activity. Whether Tenuo is on is read through a local Activity, so it's recorded in history and replays the same way.
+- [`ToolCallDecision`](./workflows.py#L211-L214) in `workflows.py`: the Signal that carries an approver's signed decision on one held call.
+- [`issue_order_warrant`](./tenuo_repair.py#L259) and [`order_repair_template`](./tenuo_repair.py#L193): the issuer Activity loads the order from the order data and builds the warrant from that record. The plan never feeds into it, which is why a poisoned note can't widen it.
+- [`repair_tools_worker_plugin`](./tenuo_repair.py#L686): the repair-tools worker's plugin, with `require_warrant=True`. It checks each tool Activity against its warrant, and any approval signatures, before the Activity body runs.
 
 ## Requirements
 
 - Python 3.12 and [Poetry](https://python-poetry.org/)
 - The [Temporal CLI](https://docs.temporal.io/cli) for `temporal server start-dev`
-- An LLM API key for the planner ([LiteLLM](https://docs.litellm.ai/) model names, e.g. `openai/gpt-4o-mini`)
-- Tenuo 0.3.2 or later
+- An LLM API key for the planner ([LiteLLM](https://docs.litellm.ai/) model names, e.g. `openai/gpt-4o`). Only the live run calls a model; the [tests](#tests) don't.
+- Tenuo 0.3.2 or later (installed by `poetry install`)
 
 ## Run it locally
+
+Run each command from this folder. `poetry run` uses the project's environment; drop it if you've activated that environment yourself.
 
 ```bash
 poetry install
 cp .env.example .env                 # set LLM_MODEL and LLM_KEY
 temporal server start-dev            # terminal 1
 
-python create_tenuo_keys.py          # root (keep offline), issuer, worker, tools and approver key files
-python run_worker.py                 # terminal 2: Josh's agents
-python run_issuer_worker.py          # terminal 3: issues a warrant per order
-python run_repair_tools_worker.py    # terminal 4: the repair tools, warrant required
+poetry run python create_tenuo_keys.py          # root (keep offline), issuer, worker, tools and approver key files
+poetry run python run_worker.py                 # terminal 2: Josh's agents
+poetry run python run_issuer_worker.py          # terminal 3: issues a warrant per order
+poetry run python run_repair_tools_worker.py    # terminal 4: the repair tools, warrant required
 
-python poison_order_notes.py         # optional: poison two customer notes (undo with: git checkout data/)
-python run_repair_agent.py           # approve the plan when asked
-python approve_repair_call.py --as store-manager   # then --as finance; add --no to deny
-tenuo receipt chain receipts/repair-tools.jsonl     # verify the signed receipts offline
+poetry run python poison_order_notes.py         # optional: poison two customer notes (undo with: git checkout data/)
+poetry run python run_repair_agent.py           # answer "yes" to approve the plan
+poetry run python approve_repair_call.py --as store-manager   # then --as finance; --yes or --no to skip the prompt
+poetry run tenuo receipt chain receipts/repair-tools.jsonl     # verify the signed receipts offline
 ```
 
 `create_tenuo_keys.py` writes one env file per role (`tenuo-root.env`, `tenuo-issuer.env`, `tenuo-worker.env`, `tenuo-tools.env`, `tenuo-approver-*.env`). They're gitignored. In a real deployment each goes to a different machine, and the root key stays offline; you only need it again to renew the issuer's warrant (`python create_tenuo_keys.py --renew-issuer`).
@@ -55,7 +64,7 @@ With the poisoned notes and the plan approved:
 | Ask Harry to update his payment | Sent | Sent |
 | Ask Ron to update his payment | Sent | Sent |
 | Send Hagrid's approval request to `hagrid@hogwarts.edu` | Sent to Hagrid | Refused by the warrant |
-| Order 5,000 badge sets for Hermione | Ordered | Held for approval |
+| Order 5,000 badge sets for Hermione | Ordered | Held until both approvers sign |
 
 In the Temporal Web UI (http://localhost:8233) you'll see an `issue_order_warrant` Activity per order, the refused call as a non-retryable Activity failure naming the broken constraint, and the `ToolCallDecision` Signal that ends the approval wait.
 
@@ -84,7 +93,14 @@ and run `python run_approval_webhook.py` alongside the other workers.
 ## Tests
 
 ```bash
-TEMPORAL_ADDRESS=localhost:7233 python -m pytest tests   # needs pytest and pytest-asyncio
+poetry run pip install pytest pytest-asyncio
+poetry run python -m pytest tests
 ```
 
-The tests run the Workflow with all three workers in-process, including a replay check that the Tenuo path is deterministic.
+The tests don't call a model and don't need an LLM key. They feed the agents a plan recorded from a real planner run with the poisoned notes ([`tests/poisoned_plan.json`](./tests/poisoned_plan.json)), and run the Workflow with the agents, issuer and repair-tools workers in one process. If `TEMPORAL_ADDRESS` is set, in your shell or in `.env`, they use that server, so keep `temporal server start-dev` running. Without it they start their own local dev server (downloaded on first run).
+
+[`tests/test_tenuo_workflow.py`](./tests/test_tenuo_workflow.py) covers the refused approval request, the held restock with and without signatures, a "no" from one approver, the ceiling, a warrant used on another order, missing or foreign warrants, an expired issuer warrant, and Josh's original path with Tenuo off. `test_replay_takes_the_recorded_path_whatever_the_worker_config` replays a recorded history to check that the Tenuo path is deterministic.
+
+## License
+
+Josh's demo is MIT ([LICENSE](./LICENSE), his copyright notice unchanged), and the Tenuo additions in this folder are released under the same license. [Tenuo](https://github.com/tenuo-ai/tenuo) itself is Apache-2.0.
