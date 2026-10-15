@@ -162,3 +162,25 @@ def test_a_cloud_decision_becomes_a_signal_payload():
     denied = tenuo_repair.decision_from_cloud_request({**base, "status": "denied"})
     assert denied["request"] == "abcd" and denied["denied"].startswith("Denied in Tenuo Cloud")
 
+
+def test_the_webhook_receiver_only_accepts_signed_fresh_events(monkeypatch):
+    import hashlib
+    import hmac
+    import time
+
+    monkeypatch.setattr("sys.argv", ["run_approval_webhook.py"])
+    import run_approval_webhook as hook
+
+    body, secret, now = b'{"type": "approval.approved"}', "s3cret", str(int(time.time()))
+    good = hmac.new(secret.encode(), f"{now}.".encode() + body, hashlib.sha256).hexdigest()
+    assert hook.verify(body, good, now, secret)
+    assert not hook.verify(body, good, now, "other-secret")
+    assert not hook.verify(body + b" ", good, now, secret)
+    stale = str(int(time.time()) - 3600)
+    old = hmac.new(secret.encode(), f"{stale}.".encode() + body, hashlib.sha256).hexdigest()
+    assert not hook.verify(body, old, stale, secret)
+    # What Cloud sends today: the body alone, as "sha256=<hex>", with no timestamp header.
+    body_only = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    assert hook.verify(body, body_only, "", secret)
+    assert not hook.verify(body, body_only, "", "other-secret")
+    assert not hook.verify(body, "", "", secret)

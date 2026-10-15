@@ -9,6 +9,7 @@ import os
 import activities
 from workflows import RepairAgentWorkflow, RepairAgentWorkflowProactive, RepairAgentWorkflowMonolith, RepairAgentWorkflowSharingContext
 from shared.config import TEMPORAL_TASK_QUEUE, get_temporal_client
+import tenuo_repair
 
 
 
@@ -36,6 +37,12 @@ async def main() -> None:
 async def run_worker() -> None:
     # Get a client and init the list of activities
     client = await get_temporal_client()
+    # Optional Tenuo warrants: sign proof of possession for repair tools (see tenuo_repair.py).
+    plugins, tenuo_activities = [], []
+    if tenuo_repair.load_worker_keys():
+        plugins = [tenuo_repair.workflow_worker_plugin()]
+        # Approval requests are bound to the holder key, so they're opened here.
+        tenuo_activities = [tenuo_repair.request_call_approval, tenuo_repair.check_call_approval]
     worker = Worker(
         client,
         task_queue=TEMPORAL_TASK_QUEUE,
@@ -50,7 +57,10 @@ async def run_worker() -> None:
                     activities.process_order,
                     activities.single_agent_repair,
                     activities.load_data,
-                    activities.report_with_original_data],
+                    activities.report_with_original_data,
+                    tenuo_repair.tenuo_mode,
+                    *tenuo_activities],
+        plugins=plugins,
     )
     print(f"Starting worker...")
     await worker.run()
