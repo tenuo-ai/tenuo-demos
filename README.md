@@ -6,6 +6,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 
 | Demo | What it shows |
 |------|--------------|
+| [**Local warrants**](local-warrants/) | Generate local authority from a YAML template or one-off request, read a real report, and block an out-of-scope read before its handler. No model key or running service; requires the matching unreleased SDK checkout. |
 | [**Invoice Processing**](invoice-processing/) | A multi-agent pipeline processes invoices. A prompt injection redirects a payment to the wrong bank account. Traditional auth (OAuth, RBAC, policy engines) all approve. Tenuo blocks it. |
 | [**Skyvern Prompt Injection**](skyvern-prompt-injection/) | An AI shopping agent browses an e-commerce store. A hidden prompt injection tricks it into buying a terrible product. Tenuo's warrant constraints block the bad purchase — the LLM is compromised but the outcome isn't. |
 | [**Temporal Incident Response**](temporal-incident-response/) | An AI on-call agent triages a production incident as a Temporal workflow. Investigation runs autonomously; the production restart is gated by a cryptographically signed human approval; the receipt chain is offline-verifiable end-to-end. |
