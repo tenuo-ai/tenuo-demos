@@ -8,7 +8,6 @@ from lifecycle_workflow import LifecycleWorkflow
 from policy import plugin_config
 from tenuo import SigningKey
 from tools import Shop
-from worker import make_worker
 from workflow import RefundWorkflow
 
 from temporalio.claude_agent_sdk import ClaudeAgentSdkRunner, make_tool_step_activity
@@ -70,16 +69,3 @@ def test_replacement_cannot_be_overwritten_before_phase_advances():
         instance.install_authority({"x-tenuo-warrant": b"second issued warrant"})
     assert instance.replacement == original
 
-
-def test_execution_proofs_cannot_enable_a_wider_retry_window():
-    issuer, holder = SigningKey.generate(), SigningKey.generate()
-    with pytest.raises(ValueError, match="strict retry verification"):
-        make_worker(
-            Mock(),
-            "task",
-            Mock(),
-            issuer,
-            holder,
-            lifecycle=True,
-            retry_pop_max_windows=40,
-        )

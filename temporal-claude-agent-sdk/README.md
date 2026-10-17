@@ -91,7 +91,7 @@ The tests also restart the Worker after the new warrant is issued, and check tha
 python run_lifecycle.py --address localhost:7233 --restart
 ```
 
-The lifecycle uses a separate, explicit mode where the Worker holds an identity and creates fresh proofs when the Activity starts. The baseline keeps proofs from scheduling time, with their queue-delay limit. [LIFECYCLE.md](LIFECYCLE.md) covers both trust models, expiry, retries, long approval waits and what we'd recommend in production. [TECHNICAL_NOTE.md](TECHNICAL_NOTE.md) traces the exact enforcement and denial path through the plugin.
+Both scenarios sign proofs the way Tenuo's Temporal plugin always does: in the workflow, when each Activity is scheduled, with the Activity Worker only verifying. The new warrant is applied with the plugin's per-dispatch warrant override, scoped around each agent run. [LIFECYCLE.md](LIFECYCLE.md) covers that, plus expiry, retries, long approval waits and what we'd recommend in production. [TECHNICAL_NOTE.md](TECHNICAL_NOTE.md) traces the exact enforcement and denial path through the plugin.
 
 ## What this demo doesn't do
 

@@ -5,6 +5,7 @@ import json
 from temporalio import workflow
 
 with workflow.unsafe.imports_passed_through():
+    from adapter import warrant_scope
     from tenuo.temporal._headers import _current_workflow_headers
 
     from temporalio.claude_agent_sdk import DurableClaudeAgent
@@ -38,8 +39,9 @@ class LifecycleWorkflow:
             or self.replacement is not None
         ):
             raise ValueError("approval must precede controller authority installation")
-        # Cryptographic validation is always at Activity ingress. This Update
-        # is a controller API, never a Claude tool. Temporal authenticates callers.
+        # Only issued public warrant headers; the Activity Worker verifies them.
+        # This Update is a controller API, never a Claude tool. Temporal
+        # authenticates callers.
         self.replacement = headers
 
     @workflow.update
@@ -59,7 +61,10 @@ class LifecycleWorkflow:
         args = {"order_id": order_id}
         if amount is not None:
             args["amount"] = amount
-        await agent.run(json.dumps({"name": name, "input": args}))
+        # Every Activity of this run is signed, when scheduled, with the
+        # authority current at its start.
+        with warrant_scope(self.authority_headers):
+            await agent.run(json.dumps({"name": name, "input": args}))
         self.calls.extend(agent.tool_calls)
 
     @workflow.run
