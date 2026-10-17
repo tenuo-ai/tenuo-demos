@@ -1,0 +1,9 @@
+# The Claude Agent SDK plugin is unreleased: pinned to draft
+# https://github.com/temporalio/ai-integrations/pull/33 at its current head.
+temporalio-claude-agent-sdk @ git+https://github.com/osamastro7-droid/ai-integrations@4f791d03c2a03a80b109939d8425ec34e1989783#subdirectory=python/claude_agent_sdk
+tenuo[temporal]==0.3.2
+temporalio==1.34.0
+claude-agent-sdk==0.2.153
+pytest>=8,<10
+pytest-asyncio>=1,<2
+pytest-timeout~=2.2
