@@ -10,6 +10,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 | [**Skyvern Prompt Injection**](skyvern-prompt-injection/) | An AI shopping agent browses an e-commerce store. A hidden prompt injection tricks it into buying a terrible product. Tenuo's warrant constraints block the bad purchase — the LLM is compromised but the outcome isn't. |
 | [**Temporal Incident Response**](temporal-incident-response/) | An AI on-call agent triages a production incident as a Temporal workflow. Investigation runs autonomously; the production restart is gated by a cryptographically signed human approval; the receipt chain is offline-verifiable end-to-end. |
 | [**Temporal Order Repair**](temporal-order-repair/) | Josh Smith's multi-agent order-repair demo on Temporal, with a warrant per order. Poisoned customer notes get the planner to route an approval to the wrong person and order 5,000 badge sets; the warrant refuses the first and holds the second for signed approval. Approvals arrive as Temporal Signals, and every checked call gets an offline-verifiable receipt. |
+| [**Claude Agent SDK on Temporal**](temporal-claude-agent-sdk/) | Temporal's Claude Agent SDK plugin runs each tool call as a durable Activity; a Tenuo Worker interceptor checks each call and its exact arguments against a task warrant first. An over-limit refund and an undelegated delete never reach the tool, and a Temporal approval alone can't authorize a bigger refund until a new warrant is issued. |
 | [**OpenAI + MCP Delegation**](openai-mcp-delegation/) | An OpenAI orchestrator delegates incident investigation to a worker. The worker keeps a deployment-read tool with narrower service arguments, while the server also rejects an undelegated rollback, a stolen chain, a detached child warrant, and an expired grant. |
 
 ## Running a demo
@@ -22,6 +23,7 @@ Each demo is self-contained: its folder has its own dependencies, setup steps an
 | Skyvern Prompt Injection | Python, Skyvern, a Tenuo Cloud account | [tutorial-guide.md](skyvern-prompt-injection/tutorial-guide.md) |
 | Temporal Incident Response | Python, the Temporal CLI | [Quickstart](temporal-incident-response/README.md#quickstart): `temporal server start-dev`, then `make setup && make demo` |
 | Temporal Order Repair | Python 3.12, Poetry, the Temporal CLI, an LLM API key | [Run it locally](temporal-order-repair/README.md#run-it-locally), summarized below |
+| Claude Agent SDK on Temporal | Python 3.10+, uv, git, the Temporal CLI (no API key) | [Run it](temporal-claude-agent-sdk/README.md#run-it): `bash run_e2e.sh` |
 | OpenAI + MCP Delegation | Python 3.11+, `uv`; an OpenAI API key only for the live agent | [Run the demo](openai-mcp-delegation/README.md#run-the-demo): `uv sync --extra dev`, then `uv run incident-demo cases` |
 
 ### Temporal Order Repair
