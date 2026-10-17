@@ -34,7 +34,7 @@ async def run(address="localhost:7233", *, restart=False, runner_factory=None):
     issuer, holder = SigningKey.generate(), SigningKey.generate()
     wid = "lifecycle-" + uuid.uuid4().hex
     order_id = "order-123"
-    initial = task_warrant(issuer, holder, workflow_id=wid, order_id=order_id)
+    initial = task_warrant(issuer, holder, order_id=order_id)
     shop, decisions = Shop(), []
 
     def audit(event):
@@ -98,7 +98,6 @@ async def run(address="localhost:7233", *, restart=False, runner_factory=None):
         replacement = task_warrant(
             issuer,
             holder,
-            workflow_id=wid,
             order_id=order_id,
             limit=250,
         )

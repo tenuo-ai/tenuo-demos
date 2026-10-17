@@ -6,13 +6,14 @@ The call crosses the real SDK payload and failure converters.
 
 import asyncio
 import uuid
+from contextlib import nullcontext
 from dataclasses import asdict, replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
-from adapter import CallSigningInterceptor, CallWorkerInterceptor
+from adapter import CallSigningInterceptor, CallWorkerInterceptor, warrant_scope
 from policy import PREFIX, TOOL_ACTIVITY, logical_call, plugin_config, task_warrant
 from tenuo import SigningKey
 from tenuo.temporal import tenuo_headers
@@ -66,7 +67,9 @@ class Boundary:
             SimpleNamespace(execute_activity=dispatch)
         )
 
-    def sign(self, step):
+    def sign(self, step, authority=None):
+        """Schedule ``step`` from a workflow started with ``self.warrant``, inside
+        ``warrant_scope(authority)`` when given."""
         run_id = uuid.uuid4().hex
         inp = SimpleNamespace(
             activity=TOOL_ACTIVITY, args=[step], headers={}, summary=None
@@ -83,7 +86,8 @@ class Boundary:
                     "temporalio.workflow.now", return_value=datetime.now(timezone.utc)
                 ),
             ):
-                CallSigningInterceptor(scheduled, self.config).start_activity(inp)
+                with warrant_scope(authority) if authority else nullcontext():
+                    CallSigningInterceptor(scheduled, self.config).start_activity(inp)
         finally:
             _workflow_headers_store.pop(run_id, None)
         scheduled.start_activity.assert_called_once()

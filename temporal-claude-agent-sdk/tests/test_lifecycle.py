@@ -4,130 +4,88 @@ import asyncio
 import base64
 import os
 import time
-from dataclasses import replace
-from types import SimpleNamespace
 
 import pytest
-from execution_proof import ExecutionProof
-from policy import TOOL_ACTIVITY, task_warrant
+from policy import task_warrant
 from run_lifecycle import run
 from tenuo.temporal import tenuo_headers
+from tenuo.temporal._headers import _extract_warrant_from_headers
 from test_boundary import Boundary, step
 
 from temporalio.api.common.v1 import Payload
 from temporalio.exceptions import ApplicationError
-from temporalio.testing import ActivityEnvironment
-from temporalio.worker import ExecuteActivityInput
 
 pytestmark = pytest.mark.asyncio
-TASK = "support-task-123"
+REFUND_250 = step("issue_refund", order_id="order-123", amount=250)
 
 
-async def execute(
-    boundary, warrant, request, *, task=TASK, attempt=1, caller_proof=None
-):
-    async def dispatch(inp):
-        boundary.body_calls += 1
-        return await inp.fn(*inp.args)
+def warrant_in(headers):
+    return _extract_warrant_from_headers({k: v.data for k, v in headers.items()})
 
-    env = ActivityEnvironment()
-    env.info = replace(
-        env.info, activity_type=TOOL_ACTIVITY, workflow_id=task, attempt=attempt
-    )
-    inbound = ExecutionProof(
-        SimpleNamespace(execute_activity=dispatch), boundary.config, "0.3.2"
-    )
-    inp = ExecuteActivityInput(
-        fn=boundary.body,
-        args=[request],
-        executor=None,
-        headers={k: Payload(data=v) for k, v in tenuo_headers(warrant, "task").items()},
-    )
-    if caller_proof is not None:
-        inp.headers["x-tenuo-pop"] = Payload(data=caller_proof)
-    return await env.run(inbound.execute_activity, inp)
+
+async def test_scope_signs_with_its_authority_and_then_restores_the_start_warrant():
+    b = Boundary()
+    replacement = task_warrant(b.issuer, b.holder, limit=250)
+    inside = b.sign(REFUND_250, authority=tenuo_headers(replacement, "task"))
+    assert warrant_in(inside).id == replacement.id
+    assert warrant_in(b.sign(REFUND_250)).id == b.warrant.id
 
 
 async def test_controller_replacement_required_and_old_authority_unchanged():
     b = Boundary()
-    initial = task_warrant(b.issuer, b.holder, workflow_id=TASK)
-    request = step("issue_refund", order_id="order-123", amount=250)
-    # A human decision is Workflow state, not a cryptographic capability.
-    for approved in (False, True):
+    # A human decision is Workflow state, not a cryptographic capability: the
+    # start warrant denies 250 before and after approval.
+    for _approved in (False, True):
         with pytest.raises(ApplicationError) as error:
-            await execute(b, initial, request)
+            await b.invoke(REFUND_250)
         assert error.value.type == "constraint_violation"
-        assert b.shop.refunds == []
-    replacement = task_warrant(b.issuer, b.holder, workflow_id=TASK, limit=250)
-    assert replacement.id != initial.id
-    await execute(b, replacement, request)
+    assert b.shop.refunds == []
+    replacement = task_warrant(b.issuer, b.holder, limit=250)
+    assert replacement.id != b.warrant.id
+    headers = b.sign(REFUND_250, authority=tenuo_headers(replacement, "task"))
+    await b.invoke(REFUND_250, headers)
     assert b.shop.refunds == [{"order_id": "order-123", "amount": 250}]
     with pytest.raises(ApplicationError):
-        await execute(b, initial, request)
+        await b.invoke(REFUND_250)
     assert b.body_calls == 1
-
-
-async def test_execution_identity_does_not_launder_a_caller_proof():
-    b = Boundary()
-    warrant = task_warrant(b.issuer, b.holder, workflow_id=TASK)
-    with pytest.raises(ApplicationError, match="does not accept caller proofs"):
-        await execute(
-            b, warrant, step("get_order", order_id="order-123"), caller_proof=b"invalid"
-        )
-    assert b.body_calls == 0
-
-
-async def test_execution_time_retry_still_checks_current_recorded_authority():
-    b = Boundary()
-    warrant = task_warrant(b.issuer, b.holder, workflow_id=TASK)
-    for attempt in (1, 2):
-        with pytest.raises(ApplicationError) as error:
-            await execute(
-                b,
-                warrant,
-                step("issue_refund", order_id="order-123", amount=250),
-                attempt=attempt,
-            )
-        assert error.value.non_retryable and error.value.type == "constraint_violation"
-    assert b.body_calls == 0 and b.shop.refunds == []
 
 
 async def test_holder_cannot_issue_its_own_expanded_authority():
     b = Boundary()
-    forged = task_warrant(b.holder, b.holder, workflow_id=TASK, limit=250)
+    forged = task_warrant(b.holder, b.holder, limit=250)
+    headers = b.sign(REFUND_250, authority=tenuo_headers(forged, "task"))
     with pytest.raises(ApplicationError):
-        await execute(b, forged, step("issue_refund", order_id="order-123", amount=250))
+        await b.invoke(REFUND_250, headers)
     assert b.body_calls == 0 and b.shop.refunds == []
 
 
-@pytest.mark.parametrize(
-    "task,order", [("other-task", "order-123"), (TASK, "order-456")]
-)
-async def test_replacement_is_bound_to_task_and_resource(task, order):
+async def test_replacement_is_bound_to_its_resource():
     b = Boundary()
-    warrant = task_warrant(b.issuer, b.holder, workflow_id=TASK, limit=250)
+    replacement = task_warrant(b.issuer, b.holder, limit=250)
+    other = step("issue_refund", order_id="order-456", amount=250)
+    headers = b.sign(other, authority=tenuo_headers(replacement, "task"))
     with pytest.raises(ApplicationError):
-        await execute(
-            b, warrant, step("issue_refund", order_id=order, amount=250), task=task
-        )
+        await b.invoke(other, headers)
     assert b.body_calls == 0 and b.shop.refunds == []
 
 
-async def test_expired_task_authority_cannot_get_a_fresh_execution_proof():
+async def test_expired_authority_is_denied_at_the_activity():
     b = Boundary()
-    warrant = task_warrant(b.issuer, b.holder, workflow_id=TASK, ttl=1)
+    short = task_warrant(b.issuer, b.holder, ttl=1)
     await asyncio.sleep(2)
-    assert warrant.is_expired()
-    with pytest.raises(ApplicationError, match="expired"):
-        await execute(b, warrant, step("get_order", order_id="order-123"))
+    assert short.is_expired()
+    request = step("get_order", order_id="order-123")
+    headers = b.sign(request, authority=tenuo_headers(short, "task"))
+    with pytest.raises(ApplicationError):
+        await b.invoke(request, headers)
     assert b.body_calls == 0
 
 
-async def test_stale_schedule_proof_fails_but_worker_origin_proof_is_fresh():
+async def test_a_stale_schedule_time_proof_is_denied_on_its_first_attempt():
     b = Boundary()
     request = step("get_order", order_id="order-123")
     headers = b.sign(request)
-    # Actual core verifier against the real clock; no widened proof window.
+    # The real verifier and clock, with the plugin's default proof windows.
     old = b.warrant.sign(
         b.holder, "get_order", request.call.input, int(time.time()) - 300
     )
@@ -135,9 +93,6 @@ async def test_stale_schedule_proof_fails_but_worker_origin_proof_is_fresh():
     with pytest.raises(ApplicationError):
         await b.invoke(request, headers)
     assert b.body_calls == 0
-    current = task_warrant(b.issuer, b.holder, workflow_id=TASK)
-    await execute(b, current, request)
-    assert b.body_calls == 1
 
 
 @pytest.mark.skipif(

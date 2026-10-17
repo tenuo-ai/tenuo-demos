@@ -45,12 +45,11 @@ def task_warrant(
     issuer: SigningKey,
     holder: SigningKey,
     *,
-    workflow_id: str | None = None,
     order_id: str = "order-123",
     limit: int = 100,
     ttl: int = 600,
 ) -> Warrant:
-    builder = (
+    return (
         Warrant.mint_builder()
         .holder(holder.public_key)
         .capability(SEGMENT_ACTIVITY, {})
@@ -59,10 +58,8 @@ def task_warrant(
             "issue_refund", order_id=Exact(order_id), amount=Range(min=0, max=limit)
         )
         .ttl(ttl)
+        .mint(issuer)
     )
-    if workflow_id is not None:
-        builder.session_id(workflow_id)
-    return builder.mint(issuer)
 
 
 def plugin_config(

@@ -1,4 +1,4 @@
-# Task authority, approval, and execution proofs
+# Task authority and approval
 
 Temporal controls when work runs and how it survives failure. Tenuo controls what authority the agent has when that work runs.
 
@@ -46,8 +46,9 @@ tool calls; no prompt carries the authorization boundary.
 
 1. The trusted controller generates separate issuer and holder keys and mints a
    ten-minute execution warrant with the existing `Warrant.mint_builder()` API.
-   `session_id(workflow_id)` binds the signed warrant to this Workflow ID;
-   the example's Activity interceptor enforces that binding. `Exact("order-123")`
+   As everywhere in Tenuo's Temporal plugin, the warrant is scoped by its holder
+   key, TTL and argument constraints; it reaches this Workflow through
+   `set_headers_for_workflow(workflow_id, ...)` at start. `Exact("order-123")`
    restricts both tool capabilities to this resource; `Range(min=0, max=100)`
    restricts the refund. The model-segment capability grants no shop side effects.
 2. `get_order` and refund 25 run. Refund 250 fails before the implementation.
@@ -58,10 +59,12 @@ tool calls; no prompt carries the authorization boundary.
 3. The Workflow waits for `approve_refund`. Approval is recorded durably. A
    second 250 request under the original warrant still fails with zero effects.
 4. The controller independently decides to mint a **new root execution warrant**
-   with the same holder, Workflow ID, exact order, and a limit of 250. It sends
+   with the same holder, exact order, and a limit of 250. It sends
    only already-issued warrant headers through `install_authority`. Increasing
    authority cannot be achieved by attenuating the old 100-limit warrant.
 5. The Workflow stores these public headers, then waits for `retry_refund`.
+   Each agent run is wrapped in `warrant_scope(...)` with the authority current
+   at its start, so the retry's Activities are signed with the replacement.
    The restart scenario stops the Worker here and creates a fresh Worker with no
    Workflow cache. Temporal reconstructs the approval and replacement from
    history; the new Worker handles the retry under the replacement warrant.
@@ -107,46 +110,31 @@ restore the old warrant. Keep history bounded by changing authority per meaningf
 phase, not on every model token or tool attempt. A new warrant does not alter the
 authority snapshot of queued Activities or authorize retries of ambiguous effects.
 
-## The queue-delay issue is real
+## Signing at scheduling time
 
-Released Tenuo 0.3.2's outbound interceptor signs using `workflow.now()` when the
-Activity is scheduled. The native verifier checks a short, windowed PoP at actual
-execution time. With the default five 30-second windows it accepts the current
-window and offsets -1, +1, -2, +2 (approximately 60 seconds each way, with bucket
-rounding). A first attempt queued for several minutes fails despite a valid
-ten-minute task warrant. Temporal retries reuse the original headers; scheduling
-logic is not rerun. The plugin's default retry setting selects 40 windows for
-attempt > 1, increasing tolerance without refreshing the proof. This example does
-not increase that setting. Tests create an authentic proof five minutes in the
-past and confirm actual native verification rejects it before dispatch.
+Both scenarios use the plugin's own proof model. The Workflow signs each
+Activity's proof when it schedules it (`workflow.now()`, inside the sandbox), with
+the holder key from the `KeyResolver`, and the Activity Worker verifies the
+warrant chain, the proof and the argument constraints before the body runs. The
+Worker that verifies never signs, so it cannot authorize a call on its own.
 
-There are two explicit modes; they are not interchangeable trust models:
+Replacing authority mid-Workflow uses the plugin's per-dispatch warrant override,
+the one `tenuo_execute_activity(..., warrant=..., key_id=...)` sets for a single
+call. The Claude plugin schedules its Activities itself inside `agent.run()`, so
+`adapter.warrant_scope(headers)` sets that same override around a whole agent
+run. A run therefore never mixes authorities, and a new warrant applies from the
+next run on; Activities already scheduled keep the authority they were signed
+with.
 
-* `adapter.py`, the baseline four-case demo, retains the released schedule-signed
-  identity model and its queue-delay limit. It binds requested name/arguments at
-  scheduling time and rejects tampering. It never replaces an invalid proof.
-* `execution_proof.py`, the lifecycle demo, uses the **trusted Activity Worker as
-  the holder**, relying on authenticated Temporal task delivery for call origin.
-  It carries only issued phase authority and a key reference in history, checks
-  the signed Workflow binding, trust chain, expiry and holder reference at ingress,
-  then signs the exact decoded name/args using the real Worker clock. The existing
-  Tenuo interceptor immediately verifies this fresh proof and constraints before
-  entering the Activity body. Caller-supplied proofs are rejected, never laundered.
-  `retry_pop_max_windows=None` keeps strict verification for every attempt.
-
-The second mode intentionally places the holder key on the effect Worker. It
-does not authenticate an untrusted remote caller's old intent independently of
-Temporal, and is unsuitable if the effect Worker must be a verification-only
-boundary. For that deployment, use a trusted execution-time holder/signing service
-with authenticated caller identity and an exact call/authority binding; do not
-teach a verifier to sign any incoming warrant or simply ignore stale proofs.
-
-Worker downtime and scheduling delays therefore consume warrant TTL but not proof
-TTL in execution-origin mode. Expired warrants are rejected before a fresh proof
-can be made. Every retry receives a fresh proof for the same recorded authority;
-retrying cannot expand it. This preserves #33's one-attempt engine-effect policy
-and the plugin's existing dedup behavior. It does not create distributed exactly-once
-effects: production still needs a shared dedup store and service idempotency.
+Proofs carry the plugin's usual time windows. A first attempt is verified within
+about a minute of scheduling (`pop_window_secs=30`, `pop_max_windows=5`), and
+retries use the wider `retry_pop_max_windows` (default 40 windows). The approval
+and replacement waits here happen between agent runs, with no Activity pending,
+so every proof is fresh when it is checked. A deployment where Activities can
+wait in a queue for longer than that should follow the plugin's guidance:
+size `retry_pop_max_windows` to the retry policy, use `workflow_issue_execution`
+or `workflow_grant` per phase, or split long work into child workflows, each with
+its own warrant.
 
 ## Production evolution
 

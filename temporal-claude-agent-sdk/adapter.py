@@ -6,18 +6,22 @@ auditing and deduplication remain in Tenuo; no package changes are required.
 
 import base64
 import copy
+from contextlib import contextmanager
 from dataclasses import replace
 
 from policy import SEGMENT_ACTIVITY, TOOL_ACTIVITY, resolve_call
 from tenuo.temporal import TenuoClientInterceptor, TenuoWorkerInterceptor
-from tenuo.temporal._constants import TENUO_POP_HEADER
-from tenuo.temporal._headers import _current_workflow_headers
+from tenuo.temporal._constants import TENUO_KEY_ID_HEADER, TENUO_POP_HEADER
+from tenuo.temporal._headers import (
+    _current_workflow_headers,
+    _extract_warrant_from_headers,
+)
 from tenuo.temporal._interceptors import (
     TenuoActivityInboundInterceptor,
     _TenuoWorkflowInboundInterceptor,
     _TenuoWorkflowOutboundInterceptor,
 )
-from tenuo.temporal._workflow import current_key_id, current_warrant
+from tenuo.temporal._state import _activity_warrant_override
 from tenuo.temporal.exceptions import (
     TenuoContextError,
     _build_non_retryable_application_error,
@@ -31,24 +35,43 @@ from temporalio.plugin import SimplePlugin
 ACTIVITIES = {TOOL_ACTIVITY, SEGMENT_ACTIVITY}
 
 
+@contextmanager
+def warrant_scope(headers):
+    """Sign every Activity scheduled inside the block with these warrant headers.
+
+    The same per-dispatch override ``tenuo_execute_activity(warrant=...)`` sets,
+    widened to every Activity the Claude plugin schedules inside ``agent.run()``,
+    since that plugin calls ``workflow.execute_activity`` itself. Signing stays
+    at scheduling time, in the workflow, as everywhere else in Tenuo's plugin.
+    """
+    token = _activity_warrant_override.set(dict(headers))
+    try:
+        yield
+    finally:
+        _activity_warrant_override.reset(token)
+
+
 class CallSigningInterceptor(_TenuoWorkflowOutboundInterceptor):
     def start_activity(self, inp):
         if inp.activity not in ACTIVITIES:
             return super().start_activity(inp)
         try:
             name, arguments = resolve_call(inp.activity, inp.args)
-            warrant = current_warrant()
-            signer = self._config.key_resolver.resolve_sync(current_key_id())
+            # As the plugin's own outbound interceptor: a per-dispatch override
+            # first, else the warrant the workflow started with.
+            headers = _activity_warrant_override.get() or _current_workflow_headers()
+            warrant = _extract_warrant_from_headers(headers)
+            key_id = headers.get(TENUO_KEY_ID_HEADER)
+            if warrant is None or not key_id:
+                raise TenuoContextError("no warrant for this Activity")
+            signer = self._config.key_resolver.resolve_sync(key_id.decode())
             proof = warrant.sign(
                 signer, name, arguments, int(workflow.now().timestamp())
             )
             signed = copy.copy(inp)
             signed.headers = {
                 **inp.headers,
-                **{
-                    key: Payload(data=value)
-                    for key, value in _current_workflow_headers().items()
-                },
+                **{key: Payload(data=value) for key, value in headers.items()},
                 TENUO_POP_HEADER: Payload(data=base64.b64encode(bytes(proof))),
             }
         except Exception as exc:

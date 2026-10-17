@@ -107,16 +107,14 @@ Worker contract, not a way to infer that an arbitrary error means nothing happen
 When it lands, this example's adapter will translate a proven pre-dispatch Tenuo
 denial into that type.
 
-## Authority lifecycle and proof freshness
+## Authority lifecycle
 
-The baseline keeps the released schedule-time PoP semantics. The additional
-lifecycle uses issued public warrant headers as Workflow state and Temporal
-Updates for approval and controller replacement. No issuing key enters Workflow
-code or history. A separate example-local execution-proof interceptor supports
-trusted Worker-held identity with fresh, strict PoP at actual execution time;
-it does not refresh arbitrary caller proofs. Expired task authority still fails.
-The signed Workflow ID and exact resource constraints bind the replacement.
-Tests exercise approval-only denial, replacement, old-warrant denial, expiry,
-untrusted self-issuance, and replay after Worker restart. See [LIFECYCLE.md](LIFECYCLE.md)
-for transport alternatives, the scheduling-delay limitation, and the trust change
-required to move signing to execution time. No released Tenuo changes are needed.
+The lifecycle keeps the released plugin's model: proofs are signed at scheduling
+time in the Workflow and verified at the Activity Worker. Issued public warrant
+headers are Workflow state, Temporal Updates carry approval and the controller's
+replacement, and no issuing key enters Workflow code or history. Each agent run
+is signed under the authority current at its start through the plugin's
+per-dispatch warrant override (`warrant_scope` in `adapter.py`). Tests cover
+approval-only denial, replacement, old-warrant denial, resource scope, expiry,
+untrusted self-issuance, stale proofs and a Worker restart after replacement. See
+[LIFECYCLE.md](LIFECYCLE.md) for transport options and proof windows.

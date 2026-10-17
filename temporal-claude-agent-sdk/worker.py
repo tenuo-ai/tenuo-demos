@@ -9,16 +9,9 @@ from temporalio.worker import Worker
 
 
 def make_worker(client, queue, runner, issuer, holder, *, lifecycle=False, **kwargs):
-    from adapter import CallWorkerInterceptor
-    from execution_proof import ExecutionWorkerInterceptor
     from lifecycle_workflow import LifecycleWorkflow
 
-    interceptor = ExecutionWorkerInterceptor if lifecycle else CallWorkerInterceptor
-    if lifecycle:
-        if kwargs.get("retry_pop_max_windows") is not None:
-            raise ValueError("execution-time proofs require strict retry verification")
-        kwargs["retry_pop_max_windows"] = None
-    plugin = PocPlugin(plugin_config(issuer, holder, **kwargs), queue, interceptor)
+    plugin = PocPlugin(plugin_config(issuer, holder, **kwargs), queue)
     activities = [make_segment_activity(runner), make_tool_step_activity(runner)]
     return Worker(
         client,
