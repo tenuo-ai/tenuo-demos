@@ -1,0 +1,15 @@
+[project]
+name = "tenuo-alpaca-mcp-scoped-trading"
+version = "0.1.0"
+description = "Per-task order limits for a trading agent on Alpaca's MCP server, with python -m tenuo.mcp.wrap"
+requires-python = ">=3.10"
+dependencies = [
+  "alpaca-mcp-server==2.4.0",
+  "tenuo[fastmcp]>=0.3.2,<0.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
