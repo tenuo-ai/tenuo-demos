@@ -1,0 +1,8 @@
+version: 2
+kind: warrant-request
+holder: agent
+reason: Read the weekly service report
+ttl: 15m
+capabilities:
+  read_report:
+    report: weekly
