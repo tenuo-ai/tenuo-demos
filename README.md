@@ -12,6 +12,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 | [**Temporal Order Repair**](temporal-order-repair/) | Josh Smith's multi-agent order-repair demo on Temporal, with a warrant per order. Poisoned customer notes get the planner to route an approval to the wrong person and order 5,000 badge sets; the warrant refuses the first and holds the second for signed approval. Approvals arrive as Temporal Signals, and every checked call gets an offline-verifiable receipt. |
 | [**Claude Agent SDK on Temporal**](temporal-claude-agent-sdk/) | Temporal's Claude Agent SDK plugin runs each tool call as a durable Activity; a Tenuo Worker interceptor checks each call and its exact arguments against a task warrant first. An over-limit refund and an undelegated delete never reach the tool, and a Temporal approval alone can't authorize a bigger refund until a new warrant is issued. |
 | [**OpenAI + MCP Delegation**](openai-mcp-delegation/) | An OpenAI orchestrator delegates incident investigation to a worker. The worker keeps a deployment-read tool with narrower service arguments, while the server also rejects an undelegated rollback, a stolen chain, a detached child warrant, and an expired grant. |
+| [**mcp-proxy Scoped Files**](mcp-proxy-scoped-files/) | mcp-proxy fronts the reference filesystem server over HTTP. Stock, an agent can overwrite CI and read `.env`; with one Tenuo check in the proxy, only its warrant's calls (read `docs/`, write one file) reach the server. Works for any stdio server behind the proxy. |
 
 ## Running a demo
 
