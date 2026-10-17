@@ -58,6 +58,11 @@ so `bcc`, `attachments`, `forward_message_id`, `reply_all` and `from_email`
 are all off unless a warrant grants them. Use the schema's argument names in
 warrants; camelCase spellings are refused rather than renamed past the check.
 
+Workspace MCP parses `to` as a recipient list, so the coordinator's domain
+rule is an anchored regex for one bare address. A glob like `*@acme.com`
+would also match `eve@evil.com,bob@acme.com` and send to both; there's a test
+for that.
+
 ## Where the warrant comes from
 
 The client side: an agent built with a Tenuo integration (OpenAI Agents,
@@ -75,7 +80,7 @@ uv run pytest
 
 - the scoped reply is sent once; nothing else goes out
 - another thread, no warrant, a stolen warrant used without the holder key, a delegated warrant without its parent, and a warrant from an untrusted root are refused
-- a camelCase alias can't smuggle in an argument
+- a camelCase alias can't smuggle in an argument, and a recipient list can't sneak an outside address past the domain rule
 - the coordinator can't delegate outside acme.com; the drafter can't re-delegate a wider recipient
 
 Tested with workspace-mcp 2.1.0, fastmcp 4.1.0 and tenuo 0.3.2.

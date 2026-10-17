@@ -74,6 +74,17 @@ def test_camel_case_alias_cannot_smuggle_an_argument():
     assert not ok and "'fromEmail'" in text and fake_google.sent == []
 
 
+@pytest.mark.parametrize(
+    "to",
+    ["eve@evil.com,bob@acme.com", "eve@evil.com, bob@acme.com", "Eve <eve@evil.com>, x@acme.com", "eve@evil.com;x@acme.com"],
+)
+def test_recipient_list_cannot_sneak_an_outside_address_past_the_domain_rule(to):
+    ok, text = send(main.reply(to=to), chain=[main.coordinator_warrant], key=main.coordinator_key)
+    assert not ok and "'to'" in text and fake_google.sent == []
+    with pytest.raises(Exception):
+        main.drafter_warrant_for(to, "thread-4471")
+
+
 def test_coordinator_cannot_delegate_outside_acme():
     with pytest.raises(MonotonicityError):
         main.drafter_warrant_for("someone@outside.example", "thread-4471")

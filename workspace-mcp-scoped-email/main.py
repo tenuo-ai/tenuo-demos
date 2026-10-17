@@ -18,7 +18,7 @@ import logging
 import time
 
 from fastmcp import Client
-from tenuo import Exact, Pattern, SigningKey, Warrant, Wildcard, encode_warrant_stack
+from tenuo import Exact, Regex, SigningKey, Warrant, Wildcard, encode_warrant_stack
 
 import fake_google
 from server import build_server
@@ -35,7 +35,9 @@ coordinator_warrant = (
         "send_gmail_message",
         {
             "user_google_email": Exact(ME),
-            "to": Pattern("*@acme.com"),
+            # One bare address at acme.com. Not Pattern("*@acme.com"): `to` is parsed as a
+            # recipient list, and a glob also matches "eve@evil.com,bob@acme.com".
+            "to": Regex(r"^[A-Za-z0-9._%+-]+@acme\.com$"),
             "thread_id": Wildcard(),
             "subject": Wildcard(),
             "body": Wildcard(),
