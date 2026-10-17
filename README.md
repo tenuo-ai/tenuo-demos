@@ -12,6 +12,7 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 | [**Temporal Order Repair**](temporal-order-repair/) | Josh Smith's multi-agent order-repair demo on Temporal, with a warrant per order. Poisoned customer notes get the planner to route an approval to the wrong person and order 5,000 badge sets; the warrant refuses the first and holds the second for signed approval. Approvals arrive as Temporal Signals, and every checked call gets an offline-verifiable receipt. |
 | [**Claude Agent SDK on Temporal**](temporal-claude-agent-sdk/) | Temporal's Claude Agent SDK plugin runs each tool call as a durable Activity; a Tenuo Worker interceptor checks each call and its exact arguments against a task warrant first. An over-limit refund and an undelegated delete never reach the tool, and a Temporal approval alone can't authorize a bigger refund until a new warrant is issued. |
 | [**OpenAI + MCP Delegation**](openai-mcp-delegation/) | An OpenAI orchestrator delegates incident investigation to a worker. The worker keeps a deployment-read tool with narrower service arguments, while the server also rejects an undelegated rollback, a stolen chain, a detached child warrant, and an expired grant. |
+| [**Kubernetes MCP Scoped On-call**](k8s-mcp-scoped-oncall/) | The Kubernetes MCP server in non-destructive mode still lets an agent scale production to zero, bind cluster-admin or switch clusters. A 9-line Tenuo check in the server lets only the on-call task (restart and scale checkout in staging) reach kubectl. |
 
 ## Running a demo
 

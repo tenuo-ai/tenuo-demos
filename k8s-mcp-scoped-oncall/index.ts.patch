@@ -1,0 +1,34 @@
+diff --git a/src/index.ts b/src/index.ts
+index 143edfe..41f762b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -30,6 +30,7 @@ import {
+ } from "./tools/kubectl-operations.js";
+ import { execInPod, execInPodSchema } from "./tools/exec_in_pod.js";
+ import { getResourceHandlers } from "./resources/handlers.js";
++import { authorizeToolCall } from "./tenuo-authz.js";
+ import {
+   ListResourcesRequestSchema,
+   ReadResourceRequestSchema,
+@@ -251,7 +252,7 @@ server.setRequestHandler(
+     method: string;
+   }) => {
+     try {
+-      const { name, arguments: input = {} } = request.params;
++      const { name } = request.params;
+ 
+       if (!isToolAllowed(name)) {
+         throw new McpError(
+@@ -260,6 +261,12 @@ server.setRequestHandler(
+         );
+       }
+ 
++      const authz = await authorizeToolCall(name, request.params.arguments ?? {}, request.params._meta);
++      if (!authz.ok) {
++        return { isError: true, content: [{ type: "text", text: authz.message }] };
++      }
++      const input = authz.args;
++
+       // Handle new kubectl-style commands
+       if (name === "kubectl_context") {
+         return await kubectlContext(

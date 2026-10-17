@@ -1,0 +1,15 @@
+[project]
+name = "tenuo-k8s-mcp-scoped-oncall"
+version = "0.1.0"
+description = "Task-scoped authority for an on-call agent on the Kubernetes MCP server, with Tenuo"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp>=1.26,<2",
+  "tenuo>=0.3.2,<0.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
