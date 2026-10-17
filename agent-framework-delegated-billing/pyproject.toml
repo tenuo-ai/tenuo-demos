@@ -1,0 +1,18 @@
+[project]
+name = "tenuo-agent-framework-delegated-billing"
+version = "0.1.0"
+description = "Task-scoped authority for a delegated Agent Framework sub-agent, enforced with Tenuo"
+requires-python = ">=3.10"
+dependencies = [
+  "agent-framework-core>=1.22,<2",
+  "tenuo>=0.3.2,<0.4",
+]
+
+[project.optional-dependencies]
+live = ["agent-framework-openai>=1.17,<2"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
