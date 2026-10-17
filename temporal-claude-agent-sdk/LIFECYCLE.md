@@ -70,6 +70,18 @@ tool calls; no prompt carries the authorization boundary.
    history; the new Worker handles the retry under the replacement warrant.
    Exactly one 250 refund is recorded. The original warrant still denies 250.
 
+## Not tied to one workflow
+
+These warrants aren't limited to the workflow they were issued for. As in Tenuo's
+Temporal plugin generally, the boundary is the holder key, the TTL and the
+argument constraints: any workflow whose Worker holds the holder key could use
+the replacement warrant to refund up to 250 on `order-123` until it expires. If
+your application needs a capability tied to one workflow, Tenuo's plugin is
+adding an optional `_workflow_id` constraint, filled from Temporal when signing
+and verifying ([tenuo#932](https://github.com/tenuo-ai/tenuo/pull/932)). With it, the controller would add
+`_workflow_id=Exact(workflow_id)` to each capability. This demo pins Tenuo 0.3.2,
+so it doesn't use it yet.
+
 These Updates are trusted controller APIs, never model tools. An Update name or
 an approver string is not authentication. The demo dev server has no client ACL;
 production must authenticate controller/human access using Temporal credentials
