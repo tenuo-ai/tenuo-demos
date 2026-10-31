@@ -16,7 +16,7 @@ fastmcp = "^2.8.0"
 openai = "^1.86.0"  # Added OpenAI client library
 litellm = "^1.72.4"
 markdown-pdf = "^1.0.1"
-tenuo = ">=0.3.2"  # warrants for the repair tools (tenuo_repair.py)
+tenuo = ">=0.3.5,<0.4"  # warrants for the repair tools (tenuo_repair.py)
 
 [build-system]
 requires = ["poetry-core"]

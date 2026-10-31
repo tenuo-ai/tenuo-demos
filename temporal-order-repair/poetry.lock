@@ -2281,17 +2281,17 @@ strands-agents = ["strands-agents (>=1.39.0)"]
 
 [[package]]
 name = "tenuo"
-version = "0.3.2"
+version = "0.3.5"
 description = "Task-scoped authorization for AI agents: signed warrants limit which tools an agent can call, with which arguments, and for how long. Adapters for LangChain, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK, AutoGen, MCP, FastMCP, A2A, FastAPI, and Temporal."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "tenuo-0.3.2-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:f7c2dea9ab205972344886221683d3048a2d74df2277d374ec42b5e639ba32a0"},
-    {file = "tenuo-0.3.2-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0405466ec06a789a126f6e118499e44dc272e8f045cc2742a2f07bf45c107dad"},
-    {file = "tenuo-0.3.2-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:c002965fe335ed013da65db9ab1792bfe276b0144cc08af7bb454a7f06528de9"},
-    {file = "tenuo-0.3.2-cp39-abi3-win_amd64.whl", hash = "sha256:33102f6426779af2bd11837d9bc1ae22cf01284fac35129613b4438b1ade41ea"},
-    {file = "tenuo-0.3.2.tar.gz", hash = "sha256:0d444b59bdabdffbeff4f544c944327cb5554287ca78c1c9e87300beb9eec162"},
+    {file = "tenuo-0.3.5-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:0793a76cbeadf05dc273ec07053c834e39dd0d29fce967fa6b3dcede7d28972e"},
+    {file = "tenuo-0.3.5-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:09c76f2ae0ff9c6e8b71531e95f73a0aaa629b016b7f5126f0bf5d4e89a69fba"},
+    {file = "tenuo-0.3.5-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:0d836f12879c73c7c49461e604f89df148064bb97128e6ffc096bb0adc482543"},
+    {file = "tenuo-0.3.5-cp39-abi3-win_amd64.whl", hash = "sha256:44bd82f5c2fe6896f7026cce2eb14cb61bb7722e15b9aec250a60ce2ca4682e5"},
+    {file = "tenuo-0.3.5.tar.gz", hash = "sha256:31588cb2154dbccf475d7372200e8da9eb6c905174138f95cfe0993ffe67db3b"},
 ]
 
 [package.dependencies]
@@ -2311,8 +2311,8 @@ google-adk = ["google-adk (>=0.1)"]
 langchain = ["langchain (>=0.2)", "langchain-core (>=0.2)"]
 langgraph = ["langchain-core (>=0.2.27)", "langgraph (>=0.2)"]
 mcp = ["mcp (>=1.9.4) ; python_full_version >= \"3.10.0\""]
-openai = ["openai (>=1.0)", "openai-agents (>=0.1) ; python_full_version >= \"3.10.0\""]
-temporal = ["boto3 (>=1.26.0)", "google-cloud-secret-manager (>=2.16.0)", "temporalio (>=1.23.0) ; python_full_version >= \"3.10.0\""]
+openai = ["openai (>=1.0)", "openai-agents (>=0.3.3) ; python_full_version >= \"3.10.0\""]
+temporal = ["boto3 (>=1.26.0)", "google-cloud-secret-manager (>=2.16.0)", "temporalio (>=1.33.0) ; python_full_version >= \"3.10.0\""]
 
 [[package]]
 name = "tiktoken"
@@ -2672,4 +2672,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "233ecb8085e63c4ec68b048ebf70b34fd14f5040cb84b2464f9617c892ac6df8"
+content-hash = "cd9b7095ab9ef33a4f7d2404dd23aa880dca3d65a634d620af4d9a8461f91678"

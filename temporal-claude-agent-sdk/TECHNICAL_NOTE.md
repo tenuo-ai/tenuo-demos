@@ -4,7 +4,7 @@
 
 - Plugin: draft [temporalio/ai-integrations#33](https://github.com/temporalio/ai-integrations/pull/33),
   installed from git at `4f791d03c2a03a80b109939d8425ec34e1989783` (see `requirements.txt`).
-- Tenuo 0.3.2, Temporal SDK 1.34.0, claude-agent-sdk 0.2.153 and its bundled Claude Code.
+- Tenuo 0.3.5, Temporal SDK 1.34.0, claude-agent-sdk 0.2.153 and its bundled Claude Code.
 - The model is the plugin's deterministic local Messages API stand-in from the same
   commit; no hosted model credentials are needed. `run_e2e.sh` runs everything.
 
