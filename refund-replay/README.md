@@ -1,25 +1,54 @@
 # The refund that happens twice
 
-A support agent may refund up to $40 on invoice INV-4471. It signs one refund
-call and sends it to the payments MCP server. Somebody who can read that
-request (a log of MCP traffic, a debugging proxy, a retry queue) sends the same
-bytes again. Does the customer get $80?
+A support agent is allowed to refund up to $40 on one invoice. It sends one
+correct, properly signed refund request. Someone copies that request and sends
+it again. Does the customer get $80?
 
-Without replay protection, yes. The warrant is valid, the signature is valid and
-the arguments match the warrant, so a check that keeps no state can't tell the
-second request from the first. With a `NonceStore`, the server remembers each
-proof of possession it has accepted and refuses the copy.
+## What this demo shows
+
+Most agent attacks trick the agent into asking for the wrong thing: the wrong
+account, the wrong file, the wrong recipient. A Tenuo warrant stops those,
+because the request doesn't match what the warrant allows.
+
+This demo is about a different gap. Nobody tricks the agent. Its request is
+exactly right: right invoice, right amount, signed by the right key. The
+problem is that the same request can be **delivered twice**. Every check
+passes both times, so a warrant alone can't tell the copy from the original.
+
+The demo shows that gap happening, then closes it with Tenuo's `NonceStore`:
+a small record of requests the server has already accepted. It also shows what
+that record needs to work in production (a store shared by every server) and
+what it still doesn't stop.
+
+## How it works
 
 ```text
-agent      issue_refund(INV-4471, 4000 cents) + warrant + proof of possession
-   |
-   |  request is logged / proxied / queued
-   v
-attacker   sends the identical request again
-   |
-   v
-payments MCP server   warrant ok, signature ok, arguments ok ... seen this proof before?
+support agent   signs:  issue_refund(INV-4471, $40)  + warrant + proof of possession
+      |
+      |  the request passes through a log, a proxy or a retry queue
+      v
+attacker        resends the identical request
+      |
+      v
+payments MCP server (Tenuo middleware)
+      1. is the warrant genuine, from a trusted issuer, unexpired?
+      2. was this request signed by the key the warrant names?
+      3. do the arguments fit the warrant?
+      4. (with a NonceStore) has this exact signed request been accepted before?
+      |
+      v
+fake payments API   records every refund that actually goes out
 ```
+
+The pieces:
+
+| Piece | File | Role |
+|---|---|---|
+| The warrant | `main.py` | Issued by the operator's key to the support agent: `issue_refund` only, invoice `INV-4471` only, at most 4000 cents, USD, valid for 10 minutes. |
+| The signed request | `main.py`, `signed_request()` | The arguments plus the warrant and a *proof of possession*: the agent's signature over the warrant ID, tool name, exact arguments and a timestamp. This is what a Tenuo client attaches to every MCP `tools/call`. |
+| The attacker | `main.py` | Has a copy of a signed request but not the agent's key. It can only resend requests, not create or change them. |
+| The server | `server.py` | A FastMCP payments server with one tool, `issue_refund`, and Tenuo's `TenuoMiddleware` checking every call. `build_server(..., nonce_store=...)` turns replay protection on or off. |
+| The payments API | `fake_payments.py` | Stands in for a real payments provider, so the demo runs offline with no account. It records every refund, and the `refunded:` line in each scene is read back from it, not taken from the server's reply. |
 
 ## Run it
 
@@ -62,25 +91,63 @@ uv run main.py
   refunded: $79.00 in 2 refunds
 ```
 
-No payments account needed: `fake_payments.py` stands in for the payments API
-and records every refund. The `refunded:` lines are read back from it.
+Each scene starts with an empty payments ledger and builds its own server(s).
 
-## Why a valid warrant isn't enough
+## The scenarios
 
-Every Tenuo tool call carries a proof of possession: the agent signs the warrant
-ID, the tool, the exact arguments and a timestamp with its private key. That
-stops a stolen warrant being used without the key, and stops anyone changing
-the arguments. It doesn't stop someone resending a request the agent already
-signed.
+| # | Scenario | Server setup | What happens | Why it's in the demo |
+|---|---|---|---|---|
+| 1 | **No replay protection** | Tenuo checks only (no `NonceStore`) | The agent's refund goes through. The attacker resends the identical request a moment later and it goes through too: $80 refunded. | Shows the gap. The copy passes every check because it *is* a valid request: genuine warrant, genuine signature, allowed arguments. |
+| 2 | **With a NonceStore** | Same server plus `NonceStore()` | The agent's refund goes through and is recorded. The copy is refused as a replay: $40 refunded. | Shows the fix, and that it's one argument on the server. |
+| 3 | **A request captured long ago** | Tenuo checks only (no `NonceStore`) | A request signed five minutes earlier is refused. Nothing refunded. | Shows what Tenuo does *without* a store: the signed timestamp limits a copy to a short window (about 60–90 seconds). Old copies are useless; only fresh ones are a risk. |
+| 4 | **Two replicas, a store each** | Two servers, each with its own in-memory `NonceStore()` | The agent's refund goes to replica A. The attacker sends the copy to replica B, which has never seen it: $80 refunded. | Shows the most common deployment mistake. An in-memory store only protects the process it lives in. |
+| 5 | **Two replicas, one shared store** | Two servers using the same `NonceStore` | The copy sent to replica B is refused, because the store already holds the request replica A accepted: $40 refunded. | Shows the production setup: every server checks the same store (in practice Redis or similar; see below). |
+| 6 | **The shared store is down** | A `NonceStore` whose backend raises on every lookup | The agent's own, legitimate refund is refused. Nothing refunded. | Shows that replay protection fails closed. If the server can't check, it doesn't pay. |
+| 7 | **What a NonceStore doesn't stop** | Server with `NonceStore()` | The agent refunds $40, then signs a **new** request for $39. Both go through: $79 refunded. | Shows the honest limit. The store refuses *copies*; it doesn't count calls. A new request that the warrant allows is not a replay. |
 
-Tenuo's verification is stateless by design, so it bounds that with time. The
-signed timestamp is rounded to a 30-second window, and the verifier accepts the
-current window and two either side: roughly 60 to 90 seconds. Scene 3 shows a
-request captured five minutes ago being refused with no store at all. Inside
-that window, scene 1 shows the copy going through.
+## Why a NonceStore
 
-For calls with side effects (refunds, payments, emails, deletes) you close the
-gap by giving the verifier a `NonceStore`:
+### The problem: a valid request is valid every time
+
+Tenuo's proof of possession proves two things: the request was signed by the
+key the warrant was issued to, and nobody changed a byte of it afterwards. It
+does not prove the request is arriving *for the first time*. Nothing in a
+signature can, because a copy is byte-for-byte identical to the original.
+
+### Why Tenuo doesn't remember requests by default
+
+Tenuo's verification is deliberately stateless. To check a call, a server needs
+only the warrant chain, the trusted issuer keys and the clock. It never calls
+out to a database or another service, so it keeps working when everything else
+is down and scales without coordination.
+
+The cost of keeping no state is that a server can't know what it has already
+seen. Tenuo limits the damage with time instead: the signed timestamp is
+rounded to a 30-second window, and a server accepts the current window and two
+either side. A copy is only usable for roughly 60 to 90 seconds (scene 3).
+
+For reads, that's fine: reading the same data twice does no harm. For calls
+with side effects (refunds, payments, emails, deletes, deploys), one replay
+inside that window is one too many.
+
+### What a NonceStore does
+
+A `NonceStore` gives the server a short memory for exactly those calls. When a
+call passes every Tenuo check, the store saves a fingerprint of its signature
+for 120 seconds, longer than any signature stays fresh. If the same signature
+arrives again, the call is refused.
+
+- It records a request only **after** the warrant, signature and arguments have
+  all passed, so a refused request doesn't use anything up.
+- It refuses the call if the store can't be reached (scene 6).
+- It's opt-in and owned by whoever runs the server, so verification stays
+  stateless everywhere it isn't needed.
+
+Remembering one-time values to stop replays is a standard pattern: it's what
+`jti` tracking does for OAuth DPoP proofs and JWTs. The IETF draft that
+Tenuo implements likewise expects this tracking for calls with side effects.
+
+### Adding one
 
 ```python
 from tenuo import Authorizer, NonceStore
@@ -93,16 +160,13 @@ verifier = MCPVerifier(
 server.add_middleware(TenuoMiddleware(verifier))
 ```
 
-That is the whole change; see `server.py`. The store records a proof only after
-the warrant, signature and arguments have all passed, so a refused call doesn't
-use one up.
+That is the whole change; see `server.py`.
 
-## More than one server
+### Running more than one server
 
-`NonceStore()` keeps its memory in the process. Run two replicas behind a load
-balancer and each has its own: a request accepted by replica A can be replayed
-to replica B (scene 4). Give every replica the same backing store and the copy
-is refused wherever it lands (scene 5).
+`NonceStore()` keeps its memory inside the process. Behind a load balancer,
+every replica needs to check the same store, or a copy simply goes to a
+replica that hasn't seen it (scenes 4 and 5).
 
 Tenuo ships the interface, not a Redis client. A backend is two methods:
 
@@ -120,19 +184,17 @@ class RedisNonceBackend:
 store = NonceStore(backend=RedisNonceBackend(redis_client))
 ```
 
-If the store can't be reached, the call is refused, including the agent's own
-legitimate one (scene 6). No check, no refund.
-
 ## What it doesn't stop
 
-A `NonceStore` refuses a proof it has seen before. It doesn't count calls. In
-scene 7 the agent signs a second, new refund for $39; that's a different call,
-the warrant allows it, and it goes through. The customer gets $79. What limits
-the damage there is the warrant itself: one invoice, at most $40 per call, ten
-minutes. Keep warrants for side-effecting tools that narrow and that short.
+A `NonceStore` refuses a request it has seen before. It doesn't count calls.
+In scene 7 the agent signs a second, new refund for $39; that's a different
+request, the warrant allows it, and it goes through. The customer gets $79.
+What limits the damage there is the warrant itself: one invoice, at most $40
+per call, ten minutes. Keep warrants for side-effecting tools that narrow and
+that short.
 
-One more thing to know: because the timestamp is rounded to its window, a
-retry with identical arguments signed moments after the first produces the
+One side effect to know about: because the timestamp is rounded to its window,
+a retry with identical arguments signed moments after the first produces the
 same signature, so the store refuses it too. For refunds that's the behaviour
 you want. If a client legitimately needs to repeat an identical call, it has
 to wait for the next window.
@@ -142,6 +204,9 @@ to wait for the next window.
 ```bash
 uv run pytest
 ```
+
+Each test checks the payments ledger, not just the server's answer, so a
+refused call is proven not to have refunded anything.
 
 - without a store the copy is refunded; with one it's refused, and only $40 goes out
 - a request captured five minutes ago is refused even without a store
