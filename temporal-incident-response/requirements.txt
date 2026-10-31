@@ -1,6 +1,6 @@
 # Core
 temporalio>=1.23.0
-tenuo[temporal]>=0.1.0b23
+tenuo[temporal]>=0.3.5,<0.4
 
 # MCP server / tool dispatch
 mcp>=1.0.0

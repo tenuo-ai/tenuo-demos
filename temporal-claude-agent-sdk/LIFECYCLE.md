@@ -79,7 +79,7 @@ the replacement warrant to refund up to 250 on `order-123` until it expires. If
 your application needs a capability tied to one workflow, Tenuo's plugin is
 adding an optional `_workflow_id` constraint, filled from Temporal when signing
 and verifying ([tenuo#932](https://github.com/tenuo-ai/tenuo/pull/932)). With it, the controller would add
-`_workflow_id=Exact(workflow_id)` to each capability. This demo pins Tenuo 0.3.2,
+`_workflow_id=Exact(workflow_id)` to each capability. This demo pins Tenuo 0.3.5,
 so it doesn't use it yet.
 
 These Updates are trusted controller APIs, never model tools. An Update name or
