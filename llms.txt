@@ -1,0 +1,4 @@
+# Tenuo demos
+
+- [Local warrants](local-warrants/README.md): Common Python CLI, YAML template and ad-hoc request, real allowed report read and a denied call with zero handler execution. No model key or service required; needs the matching unreleased SDK checkout.
+- Use the matching Tenuo SDK's warrant and agent-authorization skills. Keep controller and approver private keys outside agents, use native verification, and distinguish an in-process wrapper from an independent effect boundary.
