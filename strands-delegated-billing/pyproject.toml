@@ -1,0 +1,15 @@
+[project]
+name = "tenuo-strands-delegated-billing"
+version = "0.1.0"
+description = "Task-scoped authority for a Strands sub-agent, enforced with Tenuo"
+requires-python = ">=3.10"
+dependencies = [
+  "strands-agents>=1.61,<2",
+  "tenuo>=0.3.2,<0.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
