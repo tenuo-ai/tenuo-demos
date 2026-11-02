@@ -1,0 +1,15 @@
+[project]
+name = "tenuo-mcp-proxy-scoped-files"
+version = "0.1.0"
+description = "Per-call authorization in mcp-proxy for any stdio MCP server, with Tenuo"
+requires-python = ">=3.10"
+dependencies = [
+  "mcp-proxy>=0.13,<0.14",
+  "tenuo[mcp]>=0.3.2,<0.4",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+package = false
