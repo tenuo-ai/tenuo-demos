@@ -15,6 +15,7 @@ CHAIN = [main.coordinator_warrant, main.drafter_warrant_for("bob@acme.com", "thr
 
 @pytest.fixture(autouse=True)
 def reset():
+    build_server(main.org_key.public_key)  # other test modules install their own trusted root
     fake_google.sent.clear()
 
 

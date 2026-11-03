@@ -41,6 +41,58 @@ The MCP server, its middleware and the real `send_gmail_message` code all run
 as shipped; the recipients printed above are read back from the MIME message
 the tool built.
 
+## Run it on your own Gmail
+
+`live.py` runs the same server and the same delegation against your real
+Gmail. Every email goes to you: "Bob" is your address with a `+bob` tag,
+which Gmail delivers to your own inbox.
+
+1. **setup** sends you a ticket "from Bob" so there's a real thread. Its
+   warrant allows exactly that one email and one search to find the thread.
+2. **coordinator** may email your address (any `+tag`) and delegates one task.
+3. **drafter** may reply to `you+bob@…` on that thread and nothing else.
+
+You need a Google OAuth client once (about 5 minutes):
+
+1. In [Google Cloud Console](https://console.cloud.google.com/), create a
+   project and enable the **Gmail API** (APIs & Services → Library).
+2. Open **Google Auth Platform** and click **Get started**. Choose
+   **External**, then under **Audience** add your Gmail address as a
+   **test user**.
+3. Under **Clients**, create a client of type **Desktop app**. Copy its ID
+   and secret.
+
+Then:
+
+```bash
+export GOOGLE_OAUTH_CLIENT_ID="…apps.googleusercontent.com"
+export GOOGLE_OAUTH_CLIENT_SECRET="…"
+uv run live.py --email you@gmail.com
+```
+
+The first run opens a Google sign-in page, which asks for Gmail access only.
+Google warns that the app isn't verified; it's your own client in testing
+mode, so continue. Then press Enter in the terminal. The token is saved in
+`~/.google_workspace_mcp/credentials/`, so later runs skip this step.
+
+```text
+setup: sending the ticket email to you+bob@gmail.com
+setup: ticket is thread 19a…
+
+  drafter -> send_gmail_message: reply to Bob             ALLOWED
+  drafter -> send_gmail_message: forward outside          DENIED   Constraint 'to' not satisfied: value does not match constraint
+  drafter -> send_gmail_message: add a Bcc                DENIED   Constraint 'bcc' not satisfied: unknown field not allowed (zero-trust mode)
+  drafter -> send_gmail_message: forward another message  DENIED   Constraint 'forward_message_id' not satisfied: unknown field not allowed (zero-trust mode)
+```
+
+In Gmail you'll find one thread: the ticket and the drafter's reply. Nothing
+else was sent. The refused "outside" address is on the reserved `.example`
+domain, so it couldn't be delivered even if it were sent. `uv run pytest`
+runs this same flow offline (`test_live.py`).
+
+To clean up, delete your file in `~/.google_workspace_mcp/credentials/` and
+remove the app at [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+
 ## What changes on the server
 
 `server.py` is the whole change: one `TenuoMiddleware`, trusting one public
@@ -82,5 +134,6 @@ uv run pytest
 - another thread, no warrant, a stolen warrant used without the holder key, a delegated warrant without its parent, and a warrant from an untrusted root are refused
 - a camelCase alias can't smuggle in an argument, and a recipient list can't sneak an outside address past the domain rule
 - the coordinator can't delegate outside acme.com; the drafter can't re-delegate a wider recipient
+- `live.py` end to end, offline: only the ticket and the reply are sent; the own-address rule refuses every other address and recipient list
 
 Tested with workspace-mcp 2.1.0, fastmcp 4.1.0 and tenuo 0.3.2.

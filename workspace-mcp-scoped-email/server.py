@@ -13,5 +13,7 @@ from tenuo_core import Authorizer
 
 def build_server(trusted_root):
     verifier = MCPVerifier(authorizer=Authorizer(trusted_roots=[trusted_root]), require_warrant=True)
+    # `server` is a module global: replace any earlier Tenuo middleware instead of stacking another.
+    server.middleware[:] = [m for m in server.middleware if not isinstance(m, TenuoMiddleware)]
     server.middleware.insert(0, TenuoMiddleware(verifier))
     return server

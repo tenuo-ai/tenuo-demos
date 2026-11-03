@@ -53,6 +53,8 @@ class FakeGmail:
         return _Request({"id": "thread-4471", "messages": []})
 
     def list(self, **kwargs):
+        if "q" in kwargs:  # messages().list (search): every sent message is in thread-4471
+            return _Request({"messages": [{"id": f"msg-{i + 1}", "threadId": "thread-4471"} for i in range(len(sent))]})
         return _Request({"sendAs": [{"sendAsEmail": "me@acme.com", "isPrimary": True, "signature": ""}]})
 
     def send(self, userId, body):
