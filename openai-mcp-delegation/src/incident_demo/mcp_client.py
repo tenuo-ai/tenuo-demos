@@ -8,7 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from tenuo import SigningKey
 from tenuo.mcp import SecureMCPClient
+from tenuo_core import verify_receipt
 
 from .authority import PresentedAuthority
 
@@ -34,7 +36,14 @@ def _content_text(result: object) -> str:
 
 
 class OperationsMCP:
-    def __init__(self, *, issuer_public_hex: str, state_path: Path) -> None:
+    def __init__(
+        self,
+        *,
+        issuer_public_hex: str,
+        state_path: Path,
+        receipt_path: Path | None = None,
+        quiet: bool = False,
+    ) -> None:
         # The MCP server needs process/runtime configuration, not the agent's
         # downstream credentials (notably OPENAI_API_KEY).
         inherited_names = (
@@ -48,11 +57,17 @@ class OperationsMCP:
             "TMPDIR",
             "VIRTUAL_ENV",
         )
+        self._receipt_path = receipt_path or state_path.with_suffix(".receipts")
+        self._enforcement_key = SigningKey.generate()
         env = {
             **{name: os.environ[name] for name in inherited_names if name in os.environ},
             "TENUO_DEMO_ISSUER_PUBLIC_KEY": issuer_public_hex,
             "TENUO_DEMO_STATE_PATH": str(state_path),
+            "TENUO_DEMO_ENFORCEMENT_SECRET": self._enforcement_key.secret_key_bytes().hex(),
+            "TENUO_DEMO_RECEIPT_PATH": str(self._receipt_path),
         }
+        if quiet:
+            env["TENUO_DEMO_QUIET"] = "1"
         self._client = SecureMCPClient(
             command=sys.executable,
             args=["-m", "incident_demo.ops_server"],
@@ -103,3 +118,30 @@ class OperationsMCP:
             text=text,
             error=error,
         )
+
+    def verify_denial_receipt(
+        self,
+        tool: str,
+        *,
+        evidence_dir: Path | None = None,
+    ) -> object:
+        """Verify and return the enforcement point's signed denial receipt."""
+        expected_signer = self._enforcement_key.public_key.to_bytes()
+        for wire in reversed(self._receipt_path.read_text(encoding="utf-8").splitlines()):
+            receipt = verify_receipt(wire)
+            signer = bytes.fromhex(receipt.signer_key)
+            if receipt.action == tool and receipt.outcome == "deny":
+                if signer != expected_signer:
+                    raise AssertionError("receipt was signed by an unexpected enforcement key")
+                if evidence_dir is not None:
+                    evidence_dir.mkdir(parents=True, exist_ok=True)
+                    (evidence_dir / "denial-receipt.txt").write_text(
+                        f"{wire}\n",
+                        encoding="utf-8",
+                    )
+                    (evidence_dir / "enforcement-public-key.hex").write_text(
+                        f"{expected_signer.hex()}\n",
+                        encoding="utf-8",
+                    )
+                return receipt
+        raise AssertionError(f"no signed denial receipt found for {tool}")

@@ -21,6 +21,14 @@ class ScenarioResult:
     outcome: ToolOutcome
 
 
+@dataclass(frozen=True)
+class DemoResult:
+    calls: tuple[ScenarioResult, ...]
+    deployment: str
+    rollbacks_executed: int
+    receipt_decision_code: str
+
+
 def _show_case(index: int, name: str) -> None:
     print(f"\n{index}. CASE  {name}", flush=True)
 
@@ -52,6 +60,88 @@ def _show_result(result: ScenarioResult) -> None:
     )
     if detail:
         print(f"   RESULT {detail}", flush=True)
+
+
+async def run_demo(
+    *,
+    show: bool = True,
+    evidence_dir: Path | None = None,
+) -> DemoResult:
+    """Run the short canonical delegation and evidence path."""
+    authority = create_authority()
+    state_dir = tempfile.TemporaryDirectory(prefix="tenuo-canonical-demo-")
+    state_path = Path(state_dir.name) / "operations.sqlite3"
+    receipt_path = Path(state_dir.name) / "receipts.jsonl"
+
+    try:
+        if show:
+            print("\nTenuo: authority that survives delegation\n", flush=True)
+            print("ISSUE     orchestrator: investigate checkout + rollback", flush=True)
+            print("DELEGATE  worker: investigate checkout only", flush=True)
+
+        async with OperationsMCP(
+            issuer_public_hex=authority.issuer_public_hex,
+            state_path=state_path,
+            receipt_path=receipt_path,
+            quiet=True,
+        ) as mcp:
+            read = await mcp.call(
+                authority.delegated_worker,
+                "read_deployment",
+                {"service": "checkout"},
+            )
+            read_result = ScenarioResult("worker reads deployment", "ALLOW", read)
+            if not read.allowed:
+                raise AssertionError(f"authorized read failed: {read.error}")
+            if show:
+                print("ALLOW     worker -> read_deployment(service=checkout)", flush=True)
+
+            rollback = await mcp.call(
+                authority.delegated_worker,
+                "rollback_deployment",
+                {"service": "checkout", "deployment": "8c1e"},
+            )
+            rollback_result = ScenarioResult("worker attempts rollback", "DENY", rollback)
+            if not rollback.denied:
+                raise AssertionError("worker rollback was not denied")
+            if show:
+                print("DENY      worker -> rollback_deployment(service=checkout)", flush=True)
+
+            state = await mcp.call(
+                authority.delegated_worker,
+                "read_deployment",
+                {"service": "checkout"},
+            )
+            if not state.allowed:
+                raise AssertionError(f"protected-state read failed: {state.error}")
+            snapshot = json.loads(state.text)
+            if snapshot["deployment"] != "8c1e" or snapshot["rollbacks_executed"] != 0:
+                raise AssertionError("denied rollback changed operations state")
+
+            receipt = mcp.verify_denial_receipt(
+                "rollback_deployment",
+                evidence_dir=evidence_dir,
+            )
+            decision_code = str(receipt.decision_code)
+            if evidence_dir is not None:
+                (evidence_dir / "trusted-root.hex").write_text(
+                    f"{authority.issuer_public_hex}\n",
+                    encoding="utf-8",
+                )
+
+        if show:
+            print("VERIFY    deployment=8c1e, rollbacks=0", flush=True)
+            evidence = f" ({evidence_dir}/)" if evidence_dir is not None else ""
+            print(f"VERIFY    signed denial receipt valid offline{evidence}", flush=True)
+
+        return DemoResult(
+            calls=(read_result, rollback_result),
+            deployment=snapshot["deployment"],
+            rollbacks_executed=snapshot["rollbacks_executed"],
+            receipt_decision_code=decision_code,
+        )
+    finally:
+        state_dir.cleanup()
 
 
 async def run_baseline(

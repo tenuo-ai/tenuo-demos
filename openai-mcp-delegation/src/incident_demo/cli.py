@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+from pathlib import Path
 
 from .agents import run_live_agent
-from .scenarios import run_baseline, run_cases
+from .scenarios import run_baseline, run_cases, run_demo
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,9 +17,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "command",
-        choices=("baseline", "cases", "agent", "all"),
+        choices=("demo", "baseline", "cases", "agent", "all"),
         nargs="?",
-        default="cases",
+        default="demo",
     )
     parser.add_argument(
         "--step",
@@ -29,6 +30,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _run(command: str, *, step: bool = False) -> None:
+    if command == "demo":
+        await run_demo(show=True, evidence_dir=Path(".tenuo-demo"))
     if command in {"baseline", "all"}:
         await run_baseline(show=True, step=step)
     if command == "agent" or (command == "all" and os.environ.get("OPENAI_API_KEY")):
