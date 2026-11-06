@@ -6,16 +6,17 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 
 from fastmcp import FastMCP
 from fastmcp.server.middleware.middleware import CallNext, Middleware, MiddlewareContext
-from tenuo import Authorizer, PublicKey
+from tenuo import Authorizer, HolderIdentity, PublicKey, Runtime, SigningKey
 from tenuo.mcp import MCPVerifier, TenuoMiddleware
 
 from .state import OperationsState
 
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.CRITICAL if os.environ.get("TENUO_DEMO_QUIET") else logging.INFO,
     format="[operations-server] %(message)s",
     stream=sys.stderr,
 )
@@ -27,12 +28,19 @@ logging.getLogger("tenuo").setLevel(logging.CRITICAL)
 class AuthorizationAuditMiddleware(Middleware):
     """Emit one stable server-side line for every authorization decision."""
 
+    def __init__(self, runtime: Runtime, receipt_path: Path) -> None:
+        self._runtime = runtime
+        self._receipt_path = receipt_path
+
     async def on_call_tool(
         self,
         context: MiddlewareContext,
         call_next: CallNext,
     ) -> object:
-        result = await call_next(context)
+        try:
+            result = await call_next(context)
+        finally:
+            self._write_receipts()
         structured = getattr(result, "structured_content", None) or {}
         tenuo = structured.get("tenuo", {}) if isinstance(structured, dict) else {}
         if isinstance(tenuo, dict) and tenuo:
@@ -46,24 +54,58 @@ class AuthorizationAuditMiddleware(Middleware):
             log.info("ALLOWED %s", context.message.name)
         return result
 
+    def _write_receipts(self) -> None:
+        """Persist pending receipts; on failure keep them for the next attempt.
+
+        The tool has already run, so a storage problem must not change the
+        result the caller sees.
+        """
+        receipts = self._runtime.drain_receipts()
+        if not receipts:
+            return
+        try:
+            with self._receipt_path.open("a", encoding="utf-8") as receipt_file:
+                for receipt in receipts:
+                    receipt_file.write(f"{receipt}\n")
+        except OSError as exc:
+            log.critical("could not write receipts: %s", exc)
+            return
+        self._runtime.acknowledge_receipts(len(receipts))
+
 
 def create_server() -> FastMCP:
     root_hex = os.environ.get("TENUO_DEMO_ISSUER_PUBLIC_KEY")
     state_path = os.environ.get("TENUO_DEMO_STATE_PATH")
-    if not root_hex or not state_path:
+    enforcement_key_path = os.environ.get("TENUO_DEMO_ENFORCEMENT_KEY_PATH")
+    receipt_path = os.environ.get("TENUO_DEMO_RECEIPT_PATH")
+    if not root_hex or not state_path or not enforcement_key_path or not receipt_path:
         raise RuntimeError(
-            "TENUO_DEMO_ISSUER_PUBLIC_KEY and TENUO_DEMO_STATE_PATH are required"
+            "issuer, state, enforcement key, and receipt path configuration are required"
         )
 
+    trusted_root = PublicKey.from_bytes(bytes.fromhex(root_hex))
+    enforcement_key = SigningKey.generate()
+    Path(enforcement_key_path).write_text(
+        f"{enforcement_key.public_key.to_bytes().hex()}\n",
+        encoding="utf-8",
+    )
+    runtime = Runtime(
+        HolderIdentity.from_signing_key(enforcement_key),
+        trusted_roots=[trusted_root],
+        receipts="collect",
+    )
     authorizer = Authorizer(
-        trusted_roots=[PublicKey.from_bytes(bytes.fromhex(root_hex))],
+        trusted_roots=[trusted_root],
         clock_tolerance_secs=0,
     )
-    verifier = MCPVerifier(authorizer=authorizer, require_warrant=True)
+    verifier = MCPVerifier(authorizer=authorizer, require_warrant=True, runtime=runtime)
     state = OperationsState(state_path)
     mcp = FastMCP(
         "operations",
-        middleware=[AuthorizationAuditMiddleware(), TenuoMiddleware(verifier)],
+        middleware=[
+            AuthorizationAuditMiddleware(runtime, Path(receipt_path)),
+            TenuoMiddleware(verifier),
+        ],
     )
 
     @mcp.tool()
