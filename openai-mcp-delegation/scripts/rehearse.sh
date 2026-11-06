@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+uv run incident-demo demo
 uv run incident-demo baseline
 
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then

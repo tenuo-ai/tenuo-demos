@@ -8,5 +8,6 @@ if ! command -v uv >/dev/null 2>&1; then
   exit 1
 fi
 
-uv sync --quiet
-uv run --quiet incident-demo demo
+# --inexact keeps a contributor's dev extras installed.
+uv sync --locked --inexact --quiet
+uv run --no-sync --quiet incident-demo demo

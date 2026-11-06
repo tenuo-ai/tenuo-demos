@@ -10,6 +10,9 @@ from pathlib import Path
 from .agents import run_live_agent
 from .scenarios import run_baseline, run_cases, run_demo
 
+# The project directory, wherever the command is run from.
+EVIDENCE_DIR = Path(__file__).resolve().parents[2] / ".tenuo-demo"
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -30,8 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 async def _run(command: str, *, step: bool = False) -> None:
-    if command == "demo":
-        await run_demo(show=True, evidence_dir=Path(".tenuo-demo"))
+    if command in {"demo", "all"}:
+        await run_demo(show=True, step=step, evidence_dir=EVIDENCE_DIR)
     if command in {"baseline", "all"}:
         await run_baseline(show=True, step=step)
     if command == "agent" or (command == "all" and os.environ.get("OPENAI_API_KEY")):

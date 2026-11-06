@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from tenuo import SigningKey
+from tenuo import Authorizer, PublicKey
+from tenuo.cli import check_receipt_claims
 from tenuo.mcp import SecureMCPClient
-from tenuo_core import verify_receipt
+from tenuo_core import decode_warrant_stack_base64, verify_receipt
 
 from .authority import PresentedAuthority
 
@@ -33,6 +34,13 @@ class ToolOutcome:
 def _content_text(result: object) -> str:
     blocks = getattr(result, "content", []) or []
     return "".join(getattr(block, "text", str(block)) for block in blocks)
+
+
+@dataclass(frozen=True)
+class VerifiedDenial:
+    wire: str
+    signer_hex: str
+    decision_code: str
 
 
 class OperationsMCP:
@@ -58,12 +66,14 @@ class OperationsMCP:
             "VIRTUAL_ENV",
         )
         self._receipt_path = receipt_path or state_path.with_suffix(".receipts")
-        self._enforcement_key = SigningKey.generate()
+        # The server creates its own signing key and publishes only the public
+        # half here, so the agent side can't sign receipts.
+        self._enforcement_key_path = self._receipt_path.with_suffix(".enforcement-key")
         env = {
             **{name: os.environ[name] for name in inherited_names if name in os.environ},
             "TENUO_DEMO_ISSUER_PUBLIC_KEY": issuer_public_hex,
             "TENUO_DEMO_STATE_PATH": str(state_path),
-            "TENUO_DEMO_ENFORCEMENT_SECRET": self._enforcement_key.secret_key_bytes().hex(),
+            "TENUO_DEMO_ENFORCEMENT_KEY_PATH": str(self._enforcement_key_path),
             "TENUO_DEMO_RECEIPT_PATH": str(self._receipt_path),
         }
         if quiet:
@@ -122,26 +132,38 @@ class OperationsMCP:
     def verify_denial_receipt(
         self,
         tool: str,
+        arguments: dict[str, object],
         *,
-        evidence_dir: Path | None = None,
-    ) -> object:
-        """Verify and return the enforcement point's signed denial receipt."""
-        expected_signer = self._enforcement_key.public_key.to_bytes()
+        trusted_root_hex: str,
+        decision_code: str,
+    ) -> VerifiedDenial:
+        """Verify the enforcement point's signed denial of this exact call."""
+        signer_hex = self._enforcement_key_path.read_text(encoding="utf-8").strip()
         for wire in reversed(self._receipt_path.read_text(encoding="utf-8").splitlines()):
             receipt = verify_receipt(wire)
-            signer = bytes.fromhex(receipt.signer_key)
-            if receipt.action == tool and receipt.outcome == "deny":
-                if signer != expected_signer:
-                    raise AssertionError("receipt was signed by an unexpected enforcement key")
-                if evidence_dir is not None:
-                    evidence_dir.mkdir(parents=True, exist_ok=True)
-                    (evidence_dir / "denial-receipt.txt").write_text(
-                        f"{wire}\n",
-                        encoding="utf-8",
-                    )
-                    (evidence_dir / "enforcement-public-key.hex").write_text(
-                        f"{expected_signer.hex()}\n",
-                        encoding="utf-8",
-                    )
-                return receipt
+            if receipt.action != tool or receipt.outcome != "deny":
+                continue
+            if receipt.decision_code != decision_code:
+                raise AssertionError(
+                    f"expected denial {decision_code}, got {receipt.decision_code}"
+                )
+            claims, _ = check_receipt_claims(
+                receipt,
+                roots=[trusted_root_hex],
+                authorizers=[signer_hex],
+                args=arguments,
+            )
+            problems = [claim for claim in claims if claim[1] in {"fail", "warn"}]
+            if problems:
+                raise AssertionError(f"denial receipt claims failed: {problems}")
+            # For a denial, the claim above only reports a broken chain.
+            Authorizer(trusted_roots=[PublicKey.from_bytes(bytes.fromhex(trusted_root_hex))]).verify_chain(
+                decode_warrant_stack_base64(receipt.warrant_chain),
+                as_of=receipt.timestamp,
+            )
+            return VerifiedDenial(
+                wire=wire,
+                signer_hex=signer_hex,
+                decision_code=receipt.decision_code,
+            )
         raise AssertionError(f"no signed denial receipt found for {tool}")

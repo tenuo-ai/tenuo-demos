@@ -34,8 +34,9 @@ VERIFY    signed denial receipt valid offline (.tenuo-demo/)
 ```
 
 The first verification proves the denied call never changed protected state.
-The second verifies the enforcement point's signed denial receipt locally,
-including its signer, action, outcome, and signature. It also leaves the
+The second verifies the enforcement point's signed denial receipt locally: its
+signature and signer, the action and reason for the denial, the call's
+arguments, and the warrant chain back to the trusted root. It also leaves the
 receipt and verification keys in `.tenuo-demo/`, so you can verify it in a
 separate process:
 
@@ -103,7 +104,7 @@ what that caller may do for the current unit of work.
 
 ## Explore further
 
-The short path is the default:
+The short path is the default. Add `--step` to pause before each call:
 
 ```bash
 uv run incident-demo
@@ -142,7 +143,9 @@ handoff, the orchestrator derives a fresh, read-only child warrant for the
 worker invocation. The worker chooses the two permitted reads and uses the
 protected MCP server.
 
-The tested default is `gpt-5-mini`; override it with `OPENAI_MODEL`.
+The tested default is `gpt-5-mini`; override it with `OPENAI_MODEL`. The project
+does not load `.env` files automatically. `.env.example` is a shell export
+template; source it only after replacing its placeholders.
 
 ### Seven deterministic delegation cases
 
@@ -199,6 +202,17 @@ unauthorized rollback never reached the rollback handler.
 **Effect boundary**
 : The point immediately before application code creates a real effect. In this
   demo, Tenuo middleware protects that boundary in the MCP server.
+
+## Run the tests and rehearse
+
+```bash
+uv sync --extra dev
+uv run pytest -q
+./scripts/rehearse.sh
+```
+
+The rehearsal runs the canonical path, the baseline, and the seven cases. It
+skips the live agent when `OPENAI_API_KEY` is not set.
 
 ## Where the implementation lives
 

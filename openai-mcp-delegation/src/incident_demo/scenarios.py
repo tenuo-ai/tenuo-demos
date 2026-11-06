@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +12,14 @@ from pathlib import Path
 from tenuo import Exact, SigningKey
 
 from .authority import PresentedAuthority, create_authority
-from .mcp_client import OperationsMCP, ToolOutcome
+from .mcp_client import OperationsMCP, ToolOutcome, VerifiedDenial
+
+EVIDENCE_FILES = (
+    "denial-receipt.txt",
+    "enforcement-public-key.hex",
+    "trusted-root.hex",
+)
+UNDELEGATED_TOOL_CODE = "tool-not-authorized"
 
 
 @dataclass(frozen=True)
@@ -62,16 +70,33 @@ def _show_result(result: ScenarioResult) -> None:
         print(f"   RESULT {detail}", flush=True)
 
 
+def _clear_evidence(evidence_dir: Path) -> None:
+    """A failed run must not leave an earlier run's proof behind."""
+    for name in EVIDENCE_FILES:
+        (evidence_dir / name).unlink(missing_ok=True)
+
+
+def _write_evidence(evidence_dir: Path, denial: VerifiedDenial, root_hex: str) -> None:
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    contents = (denial.wire, denial.signer_hex, root_hex)
+    for name, content in zip(EVIDENCE_FILES, contents, strict=True):
+        (evidence_dir / name).write_text(f"{content}\n", encoding="utf-8")
+
+
 async def run_demo(
     *,
     show: bool = True,
+    step: bool = False,
     evidence_dir: Path | None = None,
 ) -> DemoResult:
     """Run the short canonical delegation and evidence path."""
+    if evidence_dir is not None:
+        _clear_evidence(evidence_dir)
     authority = create_authority()
     state_dir = tempfile.TemporaryDirectory(prefix="tenuo-canonical-demo-")
     state_path = Path(state_dir.name) / "operations.sqlite3"
     receipt_path = Path(state_dir.name) / "receipts.jsonl"
+    rollback_args: dict[str, object] = {"service": "checkout", "deployment": "8c1e"}
 
     try:
         if show:
@@ -85,6 +110,8 @@ async def run_demo(
             receipt_path=receipt_path,
             quiet=True,
         ) as mcp:
+            if step:
+                _pause_for_stage("The worker's checkout read should be allowed.")
             read = await mcp.call(
                 authority.delegated_worker,
                 "read_deployment",
@@ -96,18 +123,27 @@ async def run_demo(
             if show:
                 print("ALLOW     worker -> read_deployment(service=checkout)", flush=True)
 
+            if step:
+                _pause_for_stage("The worker was never delegated rollback.")
             rollback = await mcp.call(
                 authority.delegated_worker,
                 "rollback_deployment",
-                {"service": "checkout", "deployment": "8c1e"},
+                rollback_args,
             )
             rollback_result = ScenarioResult("worker attempts rollback", "DENY", rollback)
             if not rollback.denied:
                 raise AssertionError("worker rollback was not denied")
+            # Before saying why it was denied, confirm the signed reason.
+            denial = mcp.verify_denial_receipt(
+                "rollback_deployment",
+                rollback_args,
+                trusted_root_hex=authority.issuer_public_hex,
+                decision_code=UNDELEGATED_TOOL_CODE,
+            )
             if show:
                 print(
                     "DENY      worker -> rollback_deployment(service=checkout)"
-                    " — rollback was not delegated",
+                    " \u2014 rollback was not delegated",
                     flush=True,
                 )
 
@@ -122,27 +158,19 @@ async def run_demo(
             if snapshot["deployment"] != "8c1e" or snapshot["rollbacks_executed"] != 0:
                 raise AssertionError("denied rollback changed operations state")
 
-            receipt = mcp.verify_denial_receipt(
-                "rollback_deployment",
-                evidence_dir=evidence_dir,
-            )
-            decision_code = str(receipt.decision_code)
-            if evidence_dir is not None:
-                (evidence_dir / "trusted-root.hex").write_text(
-                    f"{authority.issuer_public_hex}\n",
-                    encoding="utf-8",
-                )
+        if evidence_dir is not None:
+            _write_evidence(evidence_dir, denial, authority.issuer_public_hex)
 
         if show:
             print("VERIFY    deployment=8c1e, rollbacks=0", flush=True)
-            evidence = f" ({evidence_dir}/)" if evidence_dir is not None else ""
+            evidence = f" ({os.path.relpath(evidence_dir)}/)" if evidence_dir is not None else ""
             print(f"VERIFY    signed denial receipt valid offline{evidence}", flush=True)
 
         return DemoResult(
             calls=(read_result, rollback_result),
             deployment=snapshot["deployment"],
             rollbacks_executed=snapshot["rollbacks_executed"],
-            receipt_decision_code=decision_code,
+            receipt_decision_code=denial.decision_code,
         )
     finally:
         state_dir.cleanup()
