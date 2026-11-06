@@ -19,7 +19,10 @@ async def test_canonical_demo_verifies_effect_and_receipt(capsys, tmp_path) -> N
     assert len((evidence_dir / "trusted-root.hex").read_text().strip()) == 64
     output = capsys.readouterr().out
     assert "DELEGATE  worker: investigate checkout only" in output
-    assert "DENY      worker -> rollback_deployment(service=checkout)" in output
+    assert (
+        "DENY      worker -> rollback_deployment(service=checkout)"
+        " — rollback was not delegated"
+    ) in output
     assert "VERIFY    signed denial receipt valid offline" in output
 
 

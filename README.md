@@ -4,9 +4,9 @@ Open source demos showing how [Tenuo](https://tenuo.ai) protects AI agents with 
 
 ## Start here: authority that survives delegation
 
-The canonical demo shows a worker receive only the authority it needs, get
-blocked from using its parent's rollback permission, and leave independently
-verifiable evidence of that denial.
+Let an agent investigate production without giving it permission to change
+production. This demo allows a worker to read deployment state, blocks its
+rollback attempt, and saves a signed record you can verify locally.
 
 ```bash
 git clone https://github.com/tenuo-ai/tenuo-demos.git
@@ -14,7 +14,9 @@ cd tenuo-demos/openai-mcp-delegation
 ./run-demo.sh
 ```
 
-No API key or cloud account is required.
+Requires Python 3.11+ and [`uv`](https://docs.astral.sh/uv/). No API key or cloud
+account is required. The first run installs dependencies; the demo itself runs
+locally using scripted tool calls.
 
 ## More demos
 

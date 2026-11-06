@@ -1,8 +1,11 @@
 # Authority That Survives Agent Delegation
 
-An orchestrator can investigate and roll back production. It delegates an
-investigation to a worker without passing along rollback authority. Tenuo
-enforces both calls at the MCP server and signs the decision evidence.
+Let an agent investigate production without giving it permission to change
+production.
+
+An orchestrator can investigate and roll back a deployment. It delegates the
+investigation to a worker with read-only permission. Tenuo allows the worker's
+read, blocks its rollback attempt, and produces a signed record of the denial.
 
 ## Run it
 
@@ -12,9 +15,10 @@ Requirements: Python 3.11+ and [`uv`](https://docs.astral.sh/uv/).
 ./run-demo.sh
 ```
 
-The deterministic path needs no API key, model, network call, or Tenuo account.
-It runs the real MCP transport, signed warrant chain, proof of possession,
-enforcement middleware, SQLite effect boundary, and receipt verifier.
+No API key or account is required. The launcher installs dependencies on the
+first run; after installation, the demo runs locally without network access.
+It uses scripted tool calls so you get the same result every time, with real
+MCP requests, authorization checks, and a local database.
 
 Expected output:
 
@@ -24,7 +28,7 @@ Tenuo: authority that survives delegation
 ISSUE     orchestrator: investigate checkout + rollback
 DELEGATE  worker: investigate checkout only
 ALLOW     worker -> read_deployment(service=checkout)
-DENY      worker -> rollback_deployment(service=checkout)
+DENY      worker -> rollback_deployment(service=checkout) — rollback was not delegated
 VERIFY    deployment=8c1e, rollbacks=0
 VERIFY    signed denial receipt valid offline (.tenuo-demo/)
 ```
@@ -44,9 +48,10 @@ uv run tenuo receipt verify .tenuo-demo/denial-receipt.txt \
 
 ## What happened
 
-The orchestrator holds a signed root warrant that permits reads and rollback.
-At delegation, it derives a child warrant containing only checkout reads. A
-child can remove authority but cannot invent authority absent from its parent.
+The orchestrator holds a signed permission grant, called a **warrant**, that
+permits reads and rollback. It creates a child warrant for the worker containing
+only checkout reads. A child can remove permissions but cannot add permissions
+absent from its parent.
 
 Each MCP call carries the warrant chain and a fresh holder signature over the
 final tool name and arguments. Tenuo middleware verifies both before invoking
@@ -55,15 +60,18 @@ execute rollback without the corresponding authority.
 
 ## The workflow
 
+The default run scripts the orchestrator and worker calls. The optional
+[live-agent run](#live-openai-agents) uses OpenAI agents in those same roles.
+
 ```text
 Operator
    |
    v
-OpenAI orchestrator                  may read checkout/payments; roll back checkout
+Orchestrator                         may read checkout/payments; roll back checkout
    |
    | delegates only the investigation
    v
-OpenAI worker                        may read checkout only
+Worker                               may read checkout only
    |
    | MCP call + signed task authority
    v
@@ -76,8 +84,7 @@ FastMCP tool handler
 SQLite operations state             deployment starts at 8c1e
 ```
 
-The model chooses which tool to call. The server decides whether that exact
-call is authorized.
+In either run, the server decides whether each exact call is authorized.
 
 ## Why service identity is not enough
 
@@ -94,7 +101,7 @@ The current task needs a narrower question:
 Both checks matter. Identity establishes who is calling. Task authority limits
 what that caller may do for the current unit of work.
 
-## Advanced paths
+## Explore further
 
 The short path is the default:
 
@@ -102,30 +109,7 @@ The short path is the default:
 uv run incident-demo
 ```
 
-Run the seven detailed security cases:
-
-```bash
-uv sync --extra dev
-uv run incident-demo cases
-```
-
-They cover argument narrowing, undelegated rollback, a stolen warrant chain,
-a child detached from its parent, and expiry. Add `--step` for a
-presenter-controlled run.
-
-Run a real OpenAI orchestrator and worker (the deterministic security path does
-not depend on this):
-
-```bash
-export OPENAI_API_KEY="your-key"
-uv run incident-demo agent
-```
-
-The tested default is `gpt-5-mini`; override it with `OPENAI_MODEL`.
-
-## Detailed security cases
-
-### 1. One agent, one tool, different arguments
+### One tool, different arguments
 
 Run:
 
@@ -144,11 +128,12 @@ enough by itself.
 Both calls match the tool's JSON schema. The difference comes from the task's
 argument constraint.
 
-### 2. A normal agent investigation
+### Live OpenAI agents
 
 Run:
 
 ```bash
+export OPENAI_API_KEY="your-key"
 uv run incident-demo agent
 ```
 
@@ -157,9 +142,7 @@ handoff, the orchestrator derives a fresh, read-only child warrant for the
 worker invocation. The worker chooses the two permitted reads and uses the
 protected MCP server.
 
-This run shows that the authorization layer fits a normal agent workflow. The
-deterministic cases below make the security claims reproducible without a model
-or network connection.
+The tested default is `gpt-5-mini`; override it with `OPENAI_MODEL`.
 
 ### Seven deterministic delegation cases
 
@@ -168,6 +151,9 @@ Run:
 ```bash
 uv run incident-demo cases
 ```
+
+These scripted cases require no API key. Add `--step` to pause before each
+call while presenting. The `baseline` command supports `--step` too.
 
 | Scenario | Result | What it demonstrates |
 |---|---:|---|

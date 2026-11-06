@@ -105,7 +105,11 @@ async def run_demo(
             if not rollback.denied:
                 raise AssertionError("worker rollback was not denied")
             if show:
-                print("DENY      worker -> rollback_deployment(service=checkout)", flush=True)
+                print(
+                    "DENY      worker -> rollback_deployment(service=checkout)"
+                    " — rollback was not delegated",
+                    flush=True,
+                )
 
             state = await mcp.call(
                 authority.delegated_worker,
