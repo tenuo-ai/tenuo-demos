@@ -142,14 +142,14 @@ function WarrantCard({ minted, root, all, open, onToggle, children }: CardProps)
           <div className="flex gap-1 shrink-0">
             <button
               onClick={() => setRaw(!raw)}
-              className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
+              className="text-[11px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
             >
               {raw ? 'Summary' : 'Raw'}
             </button>
             {w.token && (
               <button
                 onClick={copyToken}
-                className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
+                className="text-[11px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
               >
                 {copied ? 'Copied' : 'Copy token'}
               </button>
@@ -159,7 +159,7 @@ function WarrantCard({ minted, root, all, open, onToggle, children }: CardProps)
       </div>
 
       {open && (raw ? (
-        <pre className="px-3 py-2 text-[11px] leading-relaxed font-mono overflow-x-auto">
+        <pre className="px-3 py-2 text-[12px] leading-relaxed font-mono overflow-x-auto">
           {displayJson(w).split('\n').map((line, i) => (
             <div key={i} className={lineClass(line)}>{line}</div>
           ))}
@@ -220,7 +220,7 @@ function WarrantCard({ minted, root, all, open, onToggle, children }: CardProps)
       {/* Warrants delegated from this one, nested so the cascade is visible */}
       {open && children && (
         <div className="ml-4 mr-2 mb-2 pl-3 border-l border-gray-700 space-y-2">
-          <div className="eyebrow text-[10px] text-gray-500 pt-1">Delegated to</div>
+          <div className="eyebrow text-[11px] text-gray-500 pt-1">Delegated to</div>
           {children}
         </div>
       )}
@@ -329,10 +329,10 @@ export function WarrantInspector({ invoiceId }: { invoiceId: string }) {
         <div className="flex items-center gap-2 shrink-0">
           {panelOpen && warrants.length > 0 && (
             <>
-              <button onClick={() => setAll(true)} className="text-[10px] text-gray-500 hover:text-gray-300">
+              <button onClick={() => setAll(true)} className="text-[11px] text-gray-500 hover:text-gray-300">
                 Expand all
               </button>
-              <button onClick={() => setAll(false)} className="text-[10px] text-gray-500 hover:text-gray-300">
+              <button onClick={() => setAll(false)} className="text-[11px] text-gray-500 hover:text-gray-300">
                 Collapse all
               </button>
             </>
@@ -346,7 +346,7 @@ export function WarrantInspector({ invoiceId }: { invoiceId: string }) {
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="text-[11px] text-gray-500">
+          <div className="text-[12px] text-gray-500">
             The Finance Controller holds the root warrant and signs each agent's warrant with its own key.
             A child can only narrow its parent. <span className="text-amber-300">= value</span> pins an
             argument to that one value. Use Raw for every field.

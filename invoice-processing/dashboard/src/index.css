@@ -14,7 +14,7 @@ body {
 @layer components {
   /* Section label, as on tenuo.ai: DM Mono, uppercase, letter-spaced, Signal Blue. */
   .eyebrow {
-    @apply font-mono text-sm font-medium uppercase text-blue-300;
+    @apply font-mono text-[14px] font-medium uppercase text-blue-300;
     letter-spacing: 0.14em;
   }
 

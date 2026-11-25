@@ -45,7 +45,7 @@ export function ArchitectureDiagram() {
               />
               {/* Delegation branch */}
               <div className="flex items-center gap-2 mt-6">
-                <div className="text-gray-700 text-[10px]">── delegates ──▶</div>
+                <div className="text-gray-700 text-[11px]">── delegates ──▶</div>
                 <AgentBox
                   name="Vendor Verification"
                   level={3}
@@ -74,7 +74,7 @@ export function ArchitectureDiagram() {
               />
               {/* Delegation branch */}
               <div className="flex items-center gap-2 mt-6">
-                <div className="text-gray-700 text-[10px]">── delegates ──▶</div>
+                <div className="text-gray-700 text-[11px]">── delegates ──▶</div>
                 <AgentBox
                   name="FX Rate Checker"
                   level={3}
@@ -96,7 +96,7 @@ export function ArchitectureDiagram() {
           <h3 className="eyebrow">
             Authorization Stack — Defense in Depth
           </h3>
-          <span className="text-[10px] text-gray-600">
+          <span className="text-[11px] text-gray-600">
             Every tool call passes through all 4 layers
           </span>
         </div>
@@ -117,7 +117,7 @@ export function ArchitectureDiagram() {
                   <ConfigBlock label="vendor-verification" items={['vendor.reader', 'vendor.editor', 'cloudsql.client']} />
                   <ConfigBlock label="fx-rate-checker" items={['fx.reader']} />
                 </div>
-                <p className="text-green-500/70 text-[10px]">✓ Least-privilege — each agent only has the roles it needs</p>
+                <p className="text-green-500/70 text-[11px]">✓ Least-privilege — each agent only has the roles it needs</p>
               </div>
             }
           />
@@ -135,7 +135,7 @@ export function ArchitectureDiagram() {
                   <ConfigBlock label="invoice-processor" items={['invoices:read', 'invoices:write', 'vendors:read', 'vendors:write', 'po:read']} />
                   <ConfigBlock label="payment-executor" items={['invoices:read', 'payments:read', 'payments:execute', 'vendors:read', 'fx:read']} />
                 </div>
-                <p className="text-green-500/70 text-[10px]">✓ Scopes are narrow — invoice-processor can't execute payments, payment-executor can't approve invoices</p>
+                <p className="text-green-500/70 text-[11px]">✓ Scopes are narrow — invoice-processor can't execute payments, payment-executor can't approve invoices</p>
               </div>
             }
           />
@@ -161,7 +161,7 @@ export function ArchitectureDiagram() {
 // Relationships:
 vendor:V-4521#editor@agent:invoice-processor
 vendor:V-4521#editor@agent:vendor-verification`} />
-                <p className="text-green-500/70 text-[10px]">✓ Object-level granularity — agent is editor on specific vendor, not globally</p>
+                <p className="text-green-500/70 text-[11px]">✓ Object-level granularity — agent is editor on specific vendor, not globally</p>
               </div>
             }
           />
@@ -188,7 +188,7 @@ passes_vendor_checks {
     input.tool_args.reason
     count(input.tool_args.reason) > 10  # needs detail
 }`} />
-                <p className="text-green-500/70 text-[10px]">✓ Sophisticated policy — rate-limited, amount-checked, requires justification for bank changes</p>
+                <p className="text-green-500/70 text-[11px]">✓ Sophisticated policy — rate-limited, amount-checked, requires justification for bank changes</p>
               </div>
             }
           />
@@ -224,14 +224,14 @@ function AgentBox({
     <div className={`${c.bg} ${c.border} border rounded-lg p-3 w-60`}>
       <div className="flex items-center justify-between mb-1">
         <span className={`text-sm font-medium ${c.text}`}>{name}</span>
-        <span className="text-[10px] text-gray-600">{LEVEL_LABELS[level]}</span>
+        <span className="text-[11px] text-gray-600">{LEVEL_LABELS[level]}</span>
       </div>
-      <p className="text-[11px] text-gray-500 mb-2">{description}</p>
+      <p className="text-[12px] text-gray-500 mb-2">{description}</p>
       <div className="flex flex-wrap gap-1">
         {tools.map((t) => (
           <span
             key={t}
-            className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
+            className={`font-mono text-[11px] px-1.5 py-0.5 rounded ${
               t === 'update_vendor_bank'
                 ? 'bg-red-900/50 text-red-400 border border-red-800'
                 : 'bg-gray-800 text-gray-300'
@@ -257,15 +257,15 @@ function AuthLayerDetail({
         onClick={onToggle}
         className="w-full px-3 py-2.5 flex items-center gap-2 text-left hover:bg-gray-800/50 transition-colors"
       >
-        <span className="w-7 shrink-0 text-center font-mono text-[10px] font-medium py-px rounded border border-blue-800 text-blue-300">{icon}</span>
+        <span className="w-7 shrink-0 text-center font-mono text-[11px] font-medium py-px rounded border border-blue-800 text-blue-300">{icon}</span>
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium text-gray-200">{name}</div>
-          <div className="text-[10px] text-gray-500 truncate">{summary}</div>
+          <div className="text-[11px] text-gray-500 truncate">{summary}</div>
         </div>
         <span className="text-gray-600 text-xs">{expanded ? '▾' : '▸'}</span>
       </button>
       {expanded && (
-        <div className="px-3 pb-3 text-[11px] border-t border-gray-800 pt-2">
+        <div className="px-3 pb-3 text-[12px] border-t border-gray-800 pt-2">
           {detail}
         </div>
       )}
@@ -276,10 +276,10 @@ function AuthLayerDetail({
 function ConfigBlock({ label, items }: { label: string; items: string[] }) {
   return (
     <div className="bg-gray-950 rounded p-2">
-      <div className="text-[10px] text-gray-500 mb-1 font-mono">{label}</div>
+      <div className="text-[11px] text-gray-500 mb-1 font-mono">{label}</div>
       <div className="flex flex-wrap gap-1">
         {items.map((item) => (
-          <span key={item} className="text-[10px] px-1 py-0.5 bg-gray-800 text-gray-400 rounded font-mono">
+          <span key={item} className="text-[11px] px-1 py-0.5 bg-gray-800 text-gray-400 rounded font-mono">
             {item}
           </span>
         ))}
@@ -290,7 +290,7 @@ function ConfigBlock({ label, items }: { label: string; items: string[] }) {
 
 function CodeBlock({ code }: { code: string }) {
   return (
-    <pre className="bg-gray-950 rounded p-2 text-[10px] text-gray-400 font-mono overflow-x-auto whitespace-pre">
+    <pre className="bg-gray-950 rounded p-2 text-[11px] text-gray-400 font-mono overflow-x-auto whitespace-pre">
       {code}
     </pre>
   )
@@ -299,7 +299,7 @@ function CodeBlock({ code }: { code: string }) {
 function PipelineStep({ step }: { step: number }) {
   return (
     <div className="flex flex-col items-center w-8 flex-shrink-0 pt-3">
-      <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-[10px] text-gray-400 font-medium">
+      <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-[11px] text-gray-400 font-medium">
         {step}
       </div>
       <div className="w-px flex-1 bg-gray-800 mt-1" />
@@ -313,7 +313,7 @@ function PipelineConnector({ label, loop }: { label: string; loop?: boolean }) {
       <div className="w-8 flex-shrink-0 flex justify-center">
         <div className="w-px h-6 bg-gray-800" />
       </div>
-      <div className={`text-[10px] px-2 py-0.5 rounded ${
+      <div className={`text-[11px] px-2 py-0.5 rounded ${
         loop
           ? 'text-blue-400 bg-blue-950/30 border border-blue-900/50'
           : 'text-gray-500'

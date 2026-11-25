@@ -124,7 +124,7 @@ export function InvoiceInspector({ attackMode, attackEnabled, selected, onSelect
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs text-gray-500">Notes field</span>
               {invoice.notes && invoice.id === 'INV-2024-1847' && attackEnabled && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 border border-red-800">
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 border border-red-800">
                   Contains injection payload
                 </span>
               )}

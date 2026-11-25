@@ -33,7 +33,7 @@ function EventIcon({ type }: { type: string }) {
   return (
     <span
       title={tag.title}
-      className={`inline-block w-12 shrink-0 text-center font-mono text-[10px] uppercase tracking-wider py-px rounded border ${tag.cls}`}
+      className={`inline-block w-12 shrink-0 text-center font-mono text-[11px] uppercase tracking-wider py-px rounded border ${tag.cls}`}
     >
       {tag.label}
     </span>
@@ -152,7 +152,7 @@ export function ToolCallLog() {
               {log.event_type === 'tenuo_block' && (
                 <div className="mt-1">
                   <span className="font-mono text-green-400 font-semibold">{log.tool_name}</span>
-                  <span className="text-green-600 ml-1 text-[10px]">not in task delegation</span>
+                  <span className="text-green-600 ml-1 text-[11px]">not in task delegation</span>
                 </div>
               )}
 
@@ -165,7 +165,7 @@ export function ToolCallLog() {
                     ({log.tool_args ? JSON.stringify(log.tool_args).slice(0, 80) : ''})
                   </span>
                   {isAttackTool && (
-                    <span className="ml-2 font-mono text-[10px] uppercase tracking-wider px-1.5 py-px rounded border border-red-800 bg-red-950 text-red-300">attack</span>
+                    <span className="ml-2 font-mono text-[11px] uppercase tracking-wider px-1.5 py-px rounded border border-red-800 bg-red-950 text-red-300">attack</span>
                   )}
                 </div>
               )}

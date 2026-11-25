@@ -142,26 +142,26 @@ export function AuthDecisionPanel() {
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
                     {isSimulation && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-900/60 text-orange-300">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-orange-900/60 text-orange-300">
                         LLM BYPASSED — DIRECT CALL
                       </span>
                     )}
                     {!isSimulation && hasAttack && !hasTenuoDeny && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-red-900 text-red-300">
                         4/4 ALLOWED · authorization gap
                       </span>
                     )}
                     {!isSimulation && hasTenuoDeny && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-900 text-green-300">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-green-900 text-green-300">
                         BLOCKED · not in task delegation
                       </span>
                     )}
                     {bankPoisoned && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400">
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400">
                         Bank changed to attacker
                       </span>
                     )}
-                    <span className="text-[10px] text-gray-600">
+                    <span className="text-[11px] text-gray-600">
                       {summary.tool_calls.length} tool calls
                     </span>
                   </div>
@@ -177,12 +177,12 @@ export function AuthDecisionPanel() {
                     <div className="px-4 py-2 bg-gray-900/50 text-xs">
                       <div className="text-gray-500">{inv.description}</div>
                       {inv.notes && (
-                        <div className={`mt-2 p-2 rounded border font-mono whitespace-pre-wrap text-[10px] ${
+                        <div className={`mt-2 p-2 rounded border font-mono whitespace-pre-wrap text-[11px] ${
                           hasAttack
                             ? 'bg-red-950/30 border-red-800 text-red-300'
                             : 'bg-gray-800 border-gray-700 text-gray-400'
                         }`}>
-                          <div className="text-[9px] text-gray-600 mb-1">Notes field:</div>
+                          <div className="text-[10px] text-gray-600 mb-1">Notes field:</div>
                           {inv.notes}
                         </div>
                       )}
@@ -230,13 +230,13 @@ export function AuthDecisionPanel() {
                                   {tc.tool_name}
                                 </span>
                                 {isAttackTool && !tenuoDeny && !isSimulation && (
-                                  <div className="text-[9px] text-yellow-600/80 mt-0.5">
+                                  <div className="text-[10px] text-yellow-600/80 mt-0.5">
                                     correctly authorized · no task scope in standard auth
                                   </div>
                                 )}
                                 {tenuoDeny && (
                                   <div className="mt-0.5 space-y-0.5">
-                                    <div className="text-[9px] text-red-400/70">
+                                    <div className="text-[10px] text-red-400/70">
                                       {tc.layers.tenuo?.reason?.includes('not authorize')
                                         ? 'not in task delegation'
                                         : tc.layers.tenuo?.reason?.includes('bank_account')
@@ -244,7 +244,7 @@ export function AuthDecisionPanel() {
                                           : 'denied'
                                       }
                                     </div>
-                                    <div className="text-[9px] text-gray-600">scope set before run · cannot be widened</div>
+                                    <div className="text-[10px] text-gray-600">scope set before run · cannot be widened</div>
                                   </div>
                                 )}
                               </td>

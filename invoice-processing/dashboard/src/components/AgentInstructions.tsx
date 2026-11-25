@@ -35,7 +35,7 @@ export function AgentInstructions({ attackMode }: { attackMode: string | null })
           Invoice Processor instructions
         </h2>
         {data.tampered && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 border border-red-800">
+          <span className="text-[11px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 border border-red-800">
             Tampered by attacker
           </span>
         )}
@@ -52,7 +52,7 @@ export function AgentInstructions({ attackMode }: { attackMode: string | null })
 
         {data.tampered_block && (
           <div className="px-3 py-3 border-t border-red-800 bg-red-950/30 text-red-300">
-            <div className="eyebrow text-[10px] text-red-400 mb-2">
+            <div className="eyebrow text-[11px] text-red-400 mb-2">
               Added by attacker
             </div>
             {data.tampered_block}

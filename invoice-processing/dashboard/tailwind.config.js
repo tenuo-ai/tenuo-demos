@@ -48,6 +48,12 @@ export default {
         sans: ['Lato', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'sans-serif'],
         mono: ['"DM Mono"', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      // Panel text one step up from Tailwind's defaults (12/14 px), since Lato
+      // reads smaller than the monospace the dashboard used before.
+      fontSize: {
+        xs: ['0.8125rem', { lineHeight: '1.25rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.375rem' }],
+      },
       borderRadius: {
         DEFAULT: '6px',
         lg: '10px',

@@ -80,7 +80,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
 
       {/* Clean-state confirmation — only meaningful in Act 3 where an attack was attempted and blocked */}
       {act === 3 && payments.length > 0 && bankChanges.length === 0 && (
-        <div className="text-[10px] text-green-700 mt-1">
+        <div className="text-[11px] text-green-700 mt-1">
           No unauthorized bank changes detected
         </div>
       )}

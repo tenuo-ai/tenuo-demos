@@ -72,7 +72,7 @@ export function WarrantChain() {
               {level > 1 && (
                 <div className="flex items-center gap-1 mb-1 ml-2">
                   <div className="w-4 border-b border-gray-700" />
-                  <span className="text-[10px] text-gray-600">
+                  <span className="text-[11px] text-gray-600">
                     attenuated by {parent}
                     {invoiceId && ` for ${invoiceId}`}
                   </span>
@@ -83,12 +83,12 @@ export function WarrantChain() {
                 {/* Header */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-gray-600">L{level}</span>
+                    <span className="text-[11px] text-gray-600">L{level}</span>
                     <span className={`text-sm font-medium ${textColor}`}>
                       {w.agent_id}
                     </span>
                   </div>
-                  <span className="text-[10px] text-gray-600">
+                  <span className="text-[11px] text-gray-600">
                     TTL: {ttl < 60 ? `${ttl}s` : `${Math.round(ttl / 60)}m`}
                   </span>
                 </div>
@@ -96,12 +96,12 @@ export function WarrantChain() {
                 {/* Tools */}
                 <div className="flex flex-wrap gap-1 mb-2">
                   {tools.map((t) => (
-                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
+                    <span key={t} className="text-[11px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400">
                       {t}
                     </span>
                   ))}
                   {removed.map((t) => (
-                    <span key={t} className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 line-through">
+                    <span key={t} className="text-[11px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 line-through">
                       {t}
                     </span>
                   ))}
@@ -109,7 +109,7 @@ export function WarrantChain() {
 
                 {/* Constraints */}
                 {constraints && typeof constraints === 'object' && constraints !== null && typeof constraints !== 'string' && (
-                  <div className="text-[10px] bg-gray-950/50 rounded p-2 font-mono">
+                  <div className="text-[11px] bg-gray-950/50 rounded p-2 font-mono">
                     {Object.entries(constraints as Record<string, unknown>).map(([tool, cons]) => (
                       <div key={tool} className="mb-1">
                         <span className="text-green-400">{tool}</span>:
@@ -135,7 +135,7 @@ export function WarrantChain() {
                   </div>
                 )}
                 {constraints === 'unconstrained' && (
-                  <div className="text-[10px] text-gray-600 italic">All tools unconstrained</div>
+                  <div className="text-[11px] text-gray-600 italic">All tools unconstrained</div>
                 )}
               </div>
             </div>
