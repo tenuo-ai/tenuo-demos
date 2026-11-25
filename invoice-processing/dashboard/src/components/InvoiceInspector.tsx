@@ -27,11 +27,13 @@ interface Props {
   attackMode: string | null
   // Whether to flag the notes field as an injection payload.
   attackEnabled: boolean
+  // Selected invoice, shared with the warrant inspector.
+  selected: string
+  onSelect: (invoiceId: string) => void
 }
 
-export function InvoiceInspector({ attackMode, attackEnabled }: Props) {
+export function InvoiceInspector({ attackMode, attackEnabled, selected, onSelect }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [selected, setSelected] = useState<string>('INV-2024-1847')
 
   // Only the newest request may update the panel, so a slow response from an
   // earlier attack mode can't overwrite the current one.
@@ -71,7 +73,7 @@ export function InvoiceInspector({ attackMode, attackEnabled }: Props) {
           {['INV-2024-1841', 'INV-2024-1847', 'INV-2024-1843'].map((id) => (
             <button
               key={id}
-              onClick={() => { setSelected(id); fetchInvoices() }}
+              onClick={() => { onSelect(id); fetchInvoices() }}
               className={`px-2 py-0.5 text-xs rounded ${
                 selected === id
                   ? id === 'INV-2024-1847'

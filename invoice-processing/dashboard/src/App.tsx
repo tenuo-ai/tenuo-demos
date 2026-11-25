@@ -3,6 +3,7 @@ import { DemoControls } from './components/DemoControls'
 import { ArchitectureDiagram } from './components/ArchitectureDiagram'
 import { InvoiceInspector } from './components/InvoiceInspector'
 import { AgentInstructions } from './components/AgentInstructions'
+import { WarrantInspector } from './components/WarrantInspector'
 import { AuthDecisionPanel } from './components/AuthDecisionPanel'
 import { ToolCallLog } from './components/ToolCallLog'
 import { DatabaseState } from './components/DatabaseState'
@@ -21,6 +22,7 @@ export default function App() {
     running: false,
   })
   const [hasLogs, setHasLogs] = useState(false)
+  const [selectedInvoice, setSelectedInvoice] = useState('INV-2024-1847')
   const [demoError, setDemoError] = useState<string | null>(null)
 
   // Fetch initial state
@@ -148,7 +150,12 @@ export default function App() {
             <ArchitectureDiagram />
           </div>
           <div className="w-1/2 overflow-y-auto">
-            <InvoiceInspector attackMode={state.attack_mode} attackEnabled={false} />
+            <InvoiceInspector
+              attackMode={state.attack_mode}
+              attackEnabled={false}
+              selected={selectedInvoice}
+              onSelect={setSelectedInvoice}
+            />
             {state.attack_mode === 'prompt' && (
               <div className="border-t border-gray-800">
                 <AgentInstructions attackMode={state.attack_mode} />
@@ -186,10 +193,17 @@ export default function App() {
             <InvoiceInspector
               attackMode={state.attack_mode}
               attackEnabled={state.attack_mode === 'injection'}
+              selected={selectedInvoice}
+              onSelect={setSelectedInvoice}
             />
             {state.attack_mode === 'prompt' && (
               <div className="border-t border-gray-800">
                 <AgentInstructions attackMode={state.attack_mode} />
+              </div>
+            )}
+            {state.auth_stack === 'tenuo' && (
+              <div className="border-t border-gray-800">
+                <WarrantInspector invoiceId={selectedInvoice} />
               </div>
             )}
             <div className="border-t border-gray-800">

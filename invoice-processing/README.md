@@ -68,6 +68,8 @@ The server switches between baseline and with-tenuo when you run `switch-mode.sh
 
 **Act 3 — Tenuo:** Same attack. The warrant says `bank_account` must be `7291034851`. The agent tries `8847291034`. Denied.
 
+In Act 3 the dashboard's **Warrant inspector** shows the decoded warrants minted during the run for the invoice selected in the Invoice Inspector: the Finance Controller's root warrant and the two narrower warrants it attenuates for the Invoice Processor (no `update_vendor_bank`) and the Payment Executor (`bank_account`, `bank_routing` and `vendor_id` pinned with `Exact`). Each child's `issuer` is the root's `holder`, and its `parent_hash` binds it to the root. **Copy token** copies the full base64 warrant.
+
 See [DIFF.md](DIFF.md) for the exact code changes between baseline and with-tenuo.
 
 ### Attack modes

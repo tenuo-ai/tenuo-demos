@@ -472,6 +472,38 @@ async def invoice_processor_instructions():
     }
 
 
+@app.get("/api/warrants")
+async def get_minted_warrants(invoice_id: str | None = None):
+    """Warrants minted in the most recent run, decoded, for the warrant inspector.
+
+    Returns the root warrant plus the child warrants minted for invoice_id
+    (or for every invoice when it is omitted), in the order they were minted.
+    Empty unless the run used the Tenuo auth stack.
+    """
+    from tools.db import get_pool
+    pool = await get_pool()
+
+    run_id = await pool.fetchval("SELECT run_id FROM agent_logs ORDER BY created_at DESC LIMIT 1")
+    if not run_id:
+        return []
+
+    rows = await pool.fetch(
+        "SELECT metadata, created_at FROM agent_logs "
+        "WHERE run_id = $1 AND event_type = 'warrant_minted' ORDER BY created_at ASC",
+        run_id,
+    )
+    warrants = []
+    for row in rows:
+        meta = json.loads(row["metadata"]) if isinstance(row["metadata"], str) else row["metadata"]
+        if not meta:
+            continue
+        child_invoice = meta.get("invoice_id")
+        if invoice_id and child_invoice and child_invoice != invoice_id:
+            continue
+        warrants.append({**meta, "minted_at": row["created_at"].isoformat()})
+    return warrants
+
+
 @app.get("/api/db/bank-changes")
 async def get_bank_changes():
     """Get vendor bank change audit log."""
