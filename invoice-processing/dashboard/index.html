@@ -10,7 +10,15 @@
       rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=TASA+Explorer:wght@500;600;700&family=Lato:wght@400;700&family=DM+Mono:wght@400;500&display=swap"
     />
-    <meta name="theme-color" content="#000A1D" />
+    <script>
+      // Apply the saved theme before first paint, so light mode doesn't flash dark.
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('tenuo-demo-theme') === 'light' ? 'light' : 'dark'
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

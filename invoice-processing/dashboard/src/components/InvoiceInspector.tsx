@@ -104,7 +104,7 @@ export function InvoiceInspector({ attackMode, attackEnabled, selected, onSelect
               </div>
               <div>
                 <span className="text-gray-600">Amount:</span>{' '}
-                <span className="text-white font-medium">
+                <span className="text-gray-50 font-medium">
                   ${invoice.amount.toLocaleString()} {invoice.currency}
                 </span>
               </div>

@@ -1,9 +1,11 @@
+@import "./theme.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Tenuo brand, navy dark theme. Colours and fonts are defined in
-   tailwind.config.js; the fonts are loaded in index.html. */
+/* Tenuo brand. Colours are CSS variables per theme (theme.css), mapped onto
+   Tailwind in tailwind.config.js; the fonts are loaded in index.html. */
 
 body {
   @apply bg-gray-950 text-gray-200 font-sans antialiased;

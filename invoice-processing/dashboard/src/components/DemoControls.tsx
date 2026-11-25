@@ -1,5 +1,6 @@
 import type { DemoState } from '../lib/types'
 import { setAct, setAttackMode, setTenuoMode, startDemo, resetDemo } from '../lib/api'
+import { useTheme } from '../lib/theme'
 
 const ATTACK_DESCRIPTIONS: Record<string, string> = {
   off: 'No attack: clean invoices, standard instructions',
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function DemoControls({ state, onStateChange, onReset }: Props) {
+  const [theme, toggleTheme] = useTheme()
   const handleAct = async (act: number) => {
     const s = await setAct(act)
     onStateChange(s)
@@ -39,7 +41,12 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 bg-navy border-b border-gray-800">
       {/* Brand */}
       <div className="flex items-center gap-3 pr-4 border-r border-gray-800">
-        <img src="/tenuo-logo-light.png" alt="Tenuo" className="h-5 w-auto" />
+        {/* White wordmark on navy, dark wordmark on white, as on tenuo.ai */}
+        <img
+          src={theme === 'dark' ? '/tenuo-logo-light.png' : '/tenuo-logo.png'}
+          alt="Tenuo"
+          className="h-5 w-auto"
+        />
         <span className="hidden 2xl:inline font-display text-sm font-semibold text-gray-200 whitespace-nowrap">
           Invoice processing demo
         </span>
@@ -47,7 +54,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
 
       {/* Act selector */}
       <div className="flex items-center gap-2">
-        <span className="eyebrow text-gray-500">Act</span>
+        <span className="hidden 2xl:inline eyebrow text-gray-500">Act</span>
         {[1, 2, 3].map((act) => (
           <button
             key={act}
@@ -70,7 +77,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       {/* Attack mode — hidden in Act 1 */}
       {state.act !== 1 && (
         <div className="flex items-center gap-2">
-          <span className="eyebrow text-gray-500">Attack</span>
+          <span className="hidden 2xl:inline eyebrow text-gray-500">Attack</span>
           {['off', 'injection', 'prompt', 'simulate'].map((mode) => (
             <button
               key={mode}
@@ -92,7 +99,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
 
       {/* Auth stack indicator */}
       <div className="flex items-center gap-2">
-        <span className="eyebrow text-gray-500">Auth</span>
+        <span className="hidden 2xl:inline eyebrow text-gray-500">Auth</span>
         <span
           className={`px-3 py-1 text-sm rounded ${
             state.auth_stack === 'tenuo'
@@ -107,7 +114,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       {/* Tenuo mode toggle — visible in Act 3 */}
       {state.act === 3 && (
         <div className="flex items-center gap-2">
-          <span className="eyebrow text-gray-500">Mode</span>
+          <span className="hidden 2xl:inline eyebrow text-gray-500">Mode</span>
           {['local', 'cloud'].map((mode) => (
             <button
               key={mode}
@@ -157,7 +164,32 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       >
         Reset
       </button>
+      <button
+        onClick={toggleTheme}
+        title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        className="p-2 rounded border border-gray-700 text-gray-300 hover:bg-gray-800 transition-colors"
+      >
+        {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+      </button>
       </div>
     </div>
+  )
+}
+
+function SunIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+    </svg>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
   )
 }

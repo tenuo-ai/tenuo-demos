@@ -135,7 +135,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
                     {p.vendor_name}
                   </span>
                   {' $'}
-                  <span className="text-white">{p.amount.toLocaleString()}</span>
+                  <span className="text-gray-50">{p.amount.toLocaleString()}</span>
                   {toAttacker && (
                     <span className="ml-2 text-red-500 font-medium">
                       ⚠ SENT TO ATTACKER ACCOUNT

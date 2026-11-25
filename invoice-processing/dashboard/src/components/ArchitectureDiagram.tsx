@@ -9,7 +9,7 @@ export function ArchitectureDiagram() {
 
   return (
     <div className="p-6 overflow-y-auto">
-      <h2 className="font-display text-2xl font-semibold text-white mb-6">
+      <h2 className="font-display text-2xl font-semibold text-gray-50 mb-6">
         AP Automation Pipeline
       </h2>
 
