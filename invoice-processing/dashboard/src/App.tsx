@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { DemoControls } from './components/DemoControls'
 import { ArchitectureDiagram } from './components/ArchitectureDiagram'
 import { InvoiceInspector } from './components/InvoiceInspector'
+import { AgentInstructions } from './components/AgentInstructions'
 import { AuthDecisionPanel } from './components/AuthDecisionPanel'
 import { ToolCallLog } from './components/ToolCallLog'
 import { DatabaseState } from './components/DatabaseState'
@@ -148,6 +149,11 @@ export default function App() {
           </div>
           <div className="w-1/2 overflow-y-auto">
             <InvoiceInspector attackEnabled={false} />
+            {state.attack_mode === 'prompt' && (
+              <div className="border-t border-gray-800">
+                <AgentInstructions attackMode={state.attack_mode} />
+              </div>
+            )}
             <div className="border-t border-gray-800">
               <DatabaseState act={state.act} />
             </div>
@@ -177,7 +183,12 @@ export default function App() {
 
           {/* Right column: Invoice Inspector + Auth + DB state */}
           <div className="w-1/2 overflow-y-auto">
-            <InvoiceInspector attackEnabled={state.attack_mode !== null} />
+            <InvoiceInspector attackEnabled={state.attack_mode === 'injection'} />
+            {state.attack_mode === 'prompt' && (
+              <div className="border-t border-gray-800">
+                <AgentInstructions attackMode={state.attack_mode} />
+              </div>
+            )}
             <div className="border-t border-gray-800">
               <AuthDecisionPanel />
             </div>

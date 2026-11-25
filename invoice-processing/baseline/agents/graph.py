@@ -22,6 +22,7 @@ from agents.logger import log_delegation, log_status, new_run
 from agents.invoice_processor import build_invoice_processor_graph
 from agents.payment_executor import build_payment_executor_graph
 from agents.state import APState, InvoiceProcessorState, PaymentExecutorState
+from attacks import describe_attack
 from server.events import publish
 
 VENDOR_PORTAL_URL = os.getenv("VENDOR_PORTAL_URL", "http://localhost:8082")
@@ -241,7 +242,8 @@ async def run_demo(
         auth_stack: "standard" or "tenuo".
     """
     run_id = new_run()
-    await log_status("system", f"Starting demo run {run_id} (attack={attack_mode})")
+    attack = describe_attack(attack_mode)
+    await log_status("system", f"Starting demo run {run_id} — attack: {attack}")
 
     if attack_mode == "injection":
         try:

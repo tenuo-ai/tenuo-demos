@@ -17,6 +17,8 @@ import httpx
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
 
+from attacks import describe_attack
+
 logger = logging.getLogger(__name__)
 
 from agents.events import agent_status_event, delegation_event
@@ -303,7 +305,8 @@ async def run_demo(
         warrant_b64: Base64-encoded warrant from Tenuo Cloud (Act 3).
     """
     run_id = new_run()
-    await log_status("system", f"Starting demo run {run_id} (act={auth_stack}, attack={attack_mode})")
+    attack = describe_attack(attack_mode)
+    await log_status("system", f"Starting demo run {run_id} (act={auth_stack}) — attack: {attack}")
 
     if attack_mode == "injection":
         try:

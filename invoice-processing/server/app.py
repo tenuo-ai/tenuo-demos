@@ -56,6 +56,16 @@ def _switch_mode(mode: str):
         del sys.modules[key]
     logger.info("Flushed %d cached module(s): %s", len(stale), stale)
 
+def _serves_poisoned_invoice(attack_mode: str | None) -> bool:
+    """Only the injection attack poisons the invoice the vendor portal serves.
+
+    The other attacks must run against a clean invoice so the presenter can
+    show where each one comes from: "prompt" tampers with the agent's own
+    instructions, and "simulate" bypasses the LLM entirely.
+    """
+    return attack_mode == "injection"
+
+
 # Demo state
 _demo_state = {
     "act": 1,
@@ -107,7 +117,7 @@ async def set_act(act: int):
     try:
         async with httpx.AsyncClient() as client:
             await client.post(
-                f"{VENDOR_PORTAL_URL}/admin/attack/{_demo_state['attack_mode'] is not None}"
+                f"{VENDOR_PORTAL_URL}/admin/attack/{_serves_poisoned_invoice(_demo_state['attack_mode'])}"
             )
     except httpx.ConnectError:
         pass
@@ -128,7 +138,7 @@ async def set_attack_mode(mode: str):
     try:
         async with httpx.AsyncClient() as client:
             await client.post(
-                f"{VENDOR_PORTAL_URL}/admin/attack/{mode != 'off'}"
+                f"{VENDOR_PORTAL_URL}/admin/attack/{_serves_poisoned_invoice(mode)}"
             )
     except httpx.ConnectError:
         pass  # Vendor portal may not be running
@@ -442,6 +452,24 @@ async def proxy_invoice(invoice_id: str):
             return resp.json()
     except httpx.ConnectError:
         return {"error": "Vendor portal not available"}
+
+
+@app.get("/api/agent-instructions/invoice-processor")
+async def invoice_processor_instructions():
+    """The Invoice Processor's system prompt for the current attack mode.
+
+    In "prompt" mode, returns the block the attacker appended separately so
+    the dashboard can highlight it.
+    """
+    from agents.prompts import INVOICE_PROCESSOR_PROMPT, INVOICE_PROCESSOR_TAMPERED_BLOCK
+
+    tampered = _demo_state["attack_mode"] == "prompt"
+    return {
+        "attack_mode": _demo_state["attack_mode"],
+        "tampered": tampered,
+        "instructions": INVOICE_PROCESSOR_PROMPT,
+        "tampered_block": INVOICE_PROCESSOR_TAMPERED_BLOCK if tampered else None,
+    }
 
 
 @app.get("/api/db/bank-changes")

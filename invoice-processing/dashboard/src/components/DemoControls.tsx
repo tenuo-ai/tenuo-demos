@@ -1,6 +1,13 @@
 import type { DemoState } from '../lib/types'
 import { setAct, setAttackMode, setTenuoMode, startDemo, resetDemo } from '../lib/api'
 
+const ATTACK_DESCRIPTIONS: Record<string, string> = {
+  off: 'No attack: clean invoices, standard instructions',
+  injection: 'Poisoned invoice: the vendor portal serves INV-2024-1847 with a fake bank-change note',
+  prompt: "Tampered instructions: the invoice is clean, but the attacker edited the Invoice Processor's system prompt",
+  simulate: 'Simulated compromise: calls update_vendor_bank directly, without the LLM, to test the auth layers in isolation',
+}
+
 interface Props {
   state: DemoState
   onStateChange: (state: DemoState) => void
@@ -60,11 +67,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
             <button
               key={mode}
               onClick={() => handleAttack(mode)}
-              title={
-                mode === 'simulate'
-                  ? 'Directly calls update_vendor_bank without LLM involvement — tests the auth layer in isolation'
-                  : undefined
-              }
+              title={ATTACK_DESCRIPTIONS[mode]}
               className={`px-3 py-1 text-sm rounded transition-colors ${
                 (state.attack_mode ?? 'off') === mode
                   ? mode === 'off'
