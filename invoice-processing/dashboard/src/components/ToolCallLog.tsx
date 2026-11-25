@@ -44,12 +44,20 @@ export function ToolCallLog() {
   const [logs, setLogs] = useState<AgentLog[]>([])
   const [filter, setFilter] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Follow new entries only while the reader is at the bottom of the log.
+  const followRef = useRef(true)
 
   useEffect(() => {
+    followRef.current = true
     const poll = async () => {
       try {
-        const data = await fetchAgentLogs(filter || undefined)
-        setLogs(data)
+        const data: AgentLog[] = await fetchAgentLogs(filter || undefined)
+        // Keep the same array when nothing changed, so polling doesn't re-render or scroll.
+        setLogs((prev) =>
+          prev.length === data.length && prev[prev.length - 1]?.id === data[data.length - 1]?.id
+            ? prev
+            : data,
+        )
       } catch {
         // ignore
       }
@@ -59,12 +67,18 @@ export function ToolCallLog() {
     return () => clearInterval(interval)
   }, [filter])
 
-  // Auto-scroll to bottom when new logs arrive
+  const onScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    followRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+  }
+
+  // Scroll to the newest entry when one arrives, unless the reader has scrolled up.
+  const lastId = logs[logs.length - 1]?.id
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [logs])
+    const el = scrollRef.current
+    if (el && followRef.current) el.scrollTop = el.scrollHeight
+  }, [lastId])
 
   // Get unique agent IDs for filter buttons
   const agents = [...new Set(logs.map((l) => l.agent_id))].filter((a) => a !== 'system')
@@ -103,7 +117,7 @@ export function ToolCallLog() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 min-h-0">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto space-y-1 min-h-0">
         {logs.map((log) => {
           const colors = getColors(log.agent_id)
           const isAttackTool = log.tool_name === 'update_vendor_bank'
