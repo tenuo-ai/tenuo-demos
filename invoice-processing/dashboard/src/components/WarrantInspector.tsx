@@ -77,9 +77,13 @@ interface CardProps {
   root?: DecodedWarrant
   // Every warrant shown, to name the agent behind a signing key.
   all: MintedWarrant[]
+  open: boolean
+  onToggle: () => void
+  // Child warrant cards, shown nested when this card is open.
+  children?: React.ReactNode
 }
 
-function WarrantCard({ minted, root, all }: CardProps) {
+function WarrantCard({ minted, root, all, open, onToggle, children }: CardProps) {
   const [copied, setCopied] = useState(false)
   const [raw, setRaw] = useState(false)
   const w = minted.warrant
@@ -110,36 +114,51 @@ function WarrantCard({ minted, root, all }: CardProps) {
   }
   pins.sort((a, b) => Number(b.exact) - Number(a.exact) || a.arg.localeCompare(b.arg))
   const issuerAgent = holderAgent(w.issuer, all)
+  const pinned = pins.filter((p) => p.exact).length
+  const hint = [
+    `${tools.length} tools`,
+    pinned > 0 ? `${pinned} pinned` : null,
+    removed.includes('update_vendor_bank') ? 'no update_vendor_bank' : null,
+    formatTtl(w.ttl_seconds),
+  ].filter(Boolean).join(' · ')
 
   return (
     <div className="rounded border border-gray-800 bg-gray-900">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-800">
-        <div className="text-xs">
+      <div className={`flex items-center justify-between gap-2 px-3 py-2 ${open ? 'border-b border-gray-800' : ''}`}>
+        <button
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex-1 min-w-0 text-left text-xs hover:opacity-80"
+        >
+          <span className="text-gray-500 inline-block w-3">{open ? '▾' : '▸'}</span>
           <span className={isRoot ? 'text-blue-400' : 'text-green-400'}>
             {isRoot ? 'Root warrant' : 'Attenuated warrant'}
           </span>
           <span className="text-gray-500"> · held by </span>
           <span className="text-gray-200">{agent}</span>
-        </div>
-        <div className="flex gap-1">
-          <button
-            onClick={() => setRaw(!raw)}
-            className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
-          >
-            {raw ? 'Summary' : 'Raw'}
-          </button>
-          {w.token && (
+          {!open && <span className="text-gray-600"> · {hint}</span>}
+        </button>
+        {open && (
+          <div className="flex gap-1 shrink-0">
             <button
-              onClick={copyToken}
+              onClick={() => setRaw(!raw)}
               className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
             >
-              {copied ? 'Copied' : 'Copy token'}
+              {raw ? 'Summary' : 'Raw'}
             </button>
-          )}
-        </div>
+            {w.token && (
+              <button
+                onClick={copyToken}
+                className="text-[10px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-400 hover:bg-gray-700"
+              >
+                {copied ? 'Copied' : 'Copy token'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
-      {raw ? (
+      {open && (raw ? (
         <pre className="px-3 py-2 text-[11px] leading-relaxed font-mono overflow-x-auto">
           {displayJson(w).split('\n').map((line, i) => (
             <div key={i} className={lineClass(line)}>{line}</div>
@@ -196,6 +215,14 @@ function WarrantCard({ minted, root, all }: CardProps) {
             <span className="font-mono text-gray-500">{w.id}</span>
           </Row>
         </dl>
+      ))}
+
+      {/* Warrants delegated from this one, nested so the cascade is visible */}
+      {open && children && (
+        <div className="ml-4 mr-2 mb-2 pl-3 border-l border-gray-700 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider text-gray-600 pt-1">Delegated to</div>
+          {children}
+        </div>
       )}
     </div>
   )
@@ -242,6 +269,30 @@ function formatTime(iso: string): string {
 
 export function WarrantInspector({ invoiceId }: { invoiceId: string }) {
   const [warrants, setWarrants] = useState<MintedWarrant[]>([])
+  const [panelOpen, setPanelOpen] = useState(true)
+  // Open/closed per warrant id. Unset means the default: root open, children closed.
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({})
+
+  const rootEntry = warrants.find((m) => !m.invoice_id)
+  const childEntries = warrants.filter((m) => m.invoice_id)
+  const idOf = (m: MintedWarrant) => m.warrant.id ?? m.minted_at
+  const isOpen = (m: MintedWarrant) => openIds[idOf(m)] ?? !m.invoice_id
+  const toggle = (m: MintedWarrant) => setOpenIds((s) => ({ ...s, [idOf(m)]: !isOpen(m) }))
+  const setAll = (value: boolean) =>
+    setOpenIds(Object.fromEntries(warrants.map((m) => [idOf(m), value])))
+
+  const card = (m: MintedWarrant, children?: React.ReactNode) => (
+    <WarrantCard
+      key={idOf(m)}
+      minted={m}
+      root={rootEntry?.warrant}
+      all={warrants}
+      open={isOpen(m)}
+      onToggle={() => toggle(m)}
+    >
+      {children}
+    </WarrantCard>
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -264,13 +315,32 @@ export function WarrantInspector({ invoiceId }: { invoiceId: string }) {
 
   return (
     <div className="p-4">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
-          Warrant inspector
-        </h2>
-        <span className="text-xs text-gray-500">{invoiceId}</span>
+      <div className={`flex items-center justify-between gap-2 ${panelOpen ? 'mb-3' : ''}`}>
+        <button
+          onClick={() => setPanelOpen(!panelOpen)}
+          aria-expanded={panelOpen}
+          className="text-left text-sm font-medium text-gray-400 uppercase tracking-wider hover:text-gray-300"
+        >
+          <span className="inline-block w-4">{panelOpen ? '▾' : '▸'}</span>Warrant inspector
+          {!panelOpen && warrants.length > 0 && (
+            <span className="normal-case tracking-normal text-xs text-gray-600"> · {warrants.length} warrants</span>
+          )}
+        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {panelOpen && warrants.length > 0 && (
+            <>
+              <button onClick={() => setAll(true)} className="text-[10px] text-gray-500 hover:text-gray-300">
+                Expand all
+              </button>
+              <button onClick={() => setAll(false)} className="text-[10px] text-gray-500 hover:text-gray-300">
+                Collapse all
+              </button>
+            </>
+          )}
+          <span className="text-xs text-gray-500">{invoiceId}</span>
+        </div>
       </div>
-      {warrants.length === 0 ? (
+      {!panelOpen ? null : warrants.length === 0 ? (
         <div className="text-xs text-gray-600">
           Warrants appear here as the Finance Controller mints them for this invoice.
         </div>
@@ -281,14 +351,9 @@ export function WarrantInspector({ invoiceId }: { invoiceId: string }) {
             A child can only narrow its parent. <span className="text-amber-300">= value</span> pins an
             argument to that one value. Use Raw for every field.
           </div>
-          {warrants.map((m) => (
-            <WarrantCard
-              key={m.warrant.id ?? m.minted_at}
-              minted={m}
-              root={warrants.find((x) => !x.invoice_id)?.warrant}
-              all={warrants}
-            />
-          ))}
+          {rootEntry
+            ? card(rootEntry, childEntries.length > 0 ? childEntries.map((m) => card(m)) : undefined)
+            : childEntries.map((m) => card(m))}
         </div>
       )}
     </div>
