@@ -26,6 +26,17 @@ body {
   }
 }
 
+/* Light theme: white panels need more separation from the page than the
+   shared rule colour gives, so borders are crisper and panels get a soft
+   shadow, as cards on tenuo.ai do. Dark mode is unchanged. */
+:root[data-theme="light"] .border-gray-800 {
+  border-color: rgb(211 215 222);
+}
+
+:root[data-theme="light"] .bg-gray-900 {
+  box-shadow: 0 1px 2px rgb(8 17 22 / 0.06), 0 2px 8px rgb(8 17 22 / 0.05);
+}
+
 :focus-visible {
   outline: 2px solid #73a5ff;
   outline-offset: 2px;

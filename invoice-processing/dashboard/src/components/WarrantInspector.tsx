@@ -257,9 +257,11 @@ function holderAgent(key: string | null | undefined, all: MintedWarrant[]): stri
   return match ? AGENT_LABELS[match.holder_agent] ?? match.holder_agent : undefined
 }
 
+// TTLs come back a second or so under the minted value (e.g. 599 for 600),
+// so show whole minutes from one minute up.
 function formatTtl(seconds?: number): string {
   if (!seconds) return '—'
-  return seconds % 60 === 0 ? `${seconds / 60} min` : `${seconds} s`
+  return seconds >= 60 ? `${Math.round(seconds / 60)} min` : `${seconds} s`
 }
 
 function formatTime(iso: string): string {

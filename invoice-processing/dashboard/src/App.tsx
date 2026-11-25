@@ -177,7 +177,7 @@ export default function App() {
             {/* Act 1 call-to-action */}
             {state.act === 1 && (
               <div className="p-4 border-t border-gray-800">
-                <div className="rounded-lg border border-gray-700 bg-gray-900/60 p-4 text-xs text-gray-400 space-y-2">
+                <div className="rounded-lg border border-gray-800 bg-gray-900 p-4 text-xs text-gray-400 space-y-2">
                   <div className="text-gray-200 font-medium text-sm">Ready to demo</div>
                   <div>
                     <span className="text-red-400 font-medium">Act 2 →</span> Select an attack mode and run the batch to see the 4-layer stack approve every step.

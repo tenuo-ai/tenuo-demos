@@ -115,12 +115,12 @@ export function AuthDecisionPanel() {
               key={inv.id}
               className={`rounded-lg border overflow-hidden ${
                 isSimulation
-                  ? 'border-orange-800 bg-orange-950/10'
+                  ? 'border-orange-800 bg-orange-950'
                   : hasTenuoDeny
-                  ? 'border-green-800 bg-green-950/10'
+                  ? 'border-green-800 bg-green-950'
                   : hasAttack
-                    ? 'border-red-800 bg-red-950/10'
-                    : 'border-gray-800 bg-gray-900/50'
+                    ? 'border-red-800 bg-red-950'
+                    : 'border-gray-800 bg-gray-900'
               }`}
             >
               {/* Invoice header — click to expand */}

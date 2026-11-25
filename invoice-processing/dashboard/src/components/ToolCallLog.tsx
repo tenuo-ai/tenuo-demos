@@ -4,13 +4,13 @@ import type { AgentLog } from '../lib/types'
 
 // Agent color scheme
 const AGENT_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  'system':              { text: 'text-gray-400',   bg: 'bg-gray-800/50',   border: 'border-gray-700' },
-  'finance-controller':  { text: 'text-blue-400',   bg: 'bg-blue-950/30',   border: 'border-blue-800' },
-  'invoice-processor':   { text: 'text-purple-400', bg: 'bg-purple-950/30', border: 'border-purple-800' },
-  'payment-executor':    { text: 'text-amber-400',  bg: 'bg-amber-950/30',  border: 'border-amber-800' },
-  'expense-reviewer':    { text: 'text-cyan-400',   bg: 'bg-cyan-950/30',   border: 'border-cyan-800' },
-  'vendor-verification': { text: 'text-green-400',  bg: 'bg-green-950/30',  border: 'border-green-800' },
-  'fx-rate-checker':     { text: 'text-orange-400', bg: 'bg-orange-950/30', border: 'border-orange-800' },
+  'system':              { text: 'text-gray-400',   bg: 'bg-gray-900',   border: 'border-gray-700' },
+  'finance-controller':  { text: 'text-blue-400',   bg: 'bg-blue-950',   border: 'border-blue-800' },
+  'invoice-processor':   { text: 'text-purple-400', bg: 'bg-purple-950', border: 'border-purple-800' },
+  'payment-executor':    { text: 'text-amber-400',  bg: 'bg-amber-950',  border: 'border-amber-800' },
+  'expense-reviewer':    { text: 'text-cyan-400',   bg: 'bg-cyan-950',   border: 'border-cyan-800' },
+  'vendor-verification': { text: 'text-green-400',  bg: 'bg-green-950',  border: 'border-green-800' },
+  'fx-rate-checker':     { text: 'text-orange-400', bg: 'bg-orange-950', border: 'border-orange-800' },
 }
 
 function getColors(agentId: string) {
@@ -127,9 +127,9 @@ export function ToolCallLog() {
               key={log.id}
               className={`text-xs px-2 py-1.5 rounded border-l-2 ${
                 log.event_type === 'tenuo_block'
-                  ? 'bg-green-950/40 border-l-green-500'
+                  ? 'bg-green-950 border-l-green-500'
                   : isAttackTool
-                  ? 'bg-red-950/40 border-l-red-500'
+                  ? 'bg-red-950 border-l-red-500'
                   : `${colors.bg} ${colors.border}`
               }`}
             >
