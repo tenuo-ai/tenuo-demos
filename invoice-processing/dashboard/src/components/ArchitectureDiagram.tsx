@@ -45,7 +45,7 @@ export function ArchitectureDiagram() {
               />
               {/* Delegation branch */}
               <div className="flex items-center gap-2 mt-6">
-                <div className="text-gray-700 text-[11px]">── delegates ──▶</div>
+                <div className="font-mono text-[11px] text-gray-500 whitespace-nowrap">── delegates ──▶</div>
                 <AgentBox
                   name="Vendor Verification"
                   level={3}
@@ -74,7 +74,7 @@ export function ArchitectureDiagram() {
               />
               {/* Delegation branch */}
               <div className="flex items-center gap-2 mt-6">
-                <div className="text-gray-700 text-[11px]">── delegates ──▶</div>
+                <div className="font-mono text-[11px] text-gray-500 whitespace-nowrap">── delegates ──▶</div>
                 <AgentBox
                   name="FX Rate Checker"
                   level={3}
@@ -205,13 +205,15 @@ passes_vendor_checks {
   )
 }
 
-const LEVEL_LABELS: Record<number, string> = { 1: 'L1 Orchestrator', 2: 'L2 Specialist', 3: 'L3 Sub-specialist' }
-const COLOR_MAP: Record<string, { bg: string; border: string; text: string }> = {
-  blue:   { bg: 'bg-blue-950/40',   border: 'border-blue-700',   text: 'text-blue-400' },
-  purple: { bg: 'bg-purple-950/40', border: 'border-purple-700', text: 'text-purple-400' },
-  amber:  { bg: 'bg-amber-950/40',  border: 'border-amber-700',  text: 'text-amber-400' },
-  green:  { bg: 'bg-green-950/40',  border: 'border-green-700',  text: 'text-green-400' },
-  orange: { bg: 'bg-orange-950/40', border: 'border-orange-700', text: 'text-orange-400' },
+const LEVEL_LABELS: Record<number, string> = { 1: 'L1 · Orchestrator', 2: 'L2 · Specialist', 3: 'L3 · Sub-specialist' }
+// Per-agent accent, as on tenuo.ai: a solid brand-colour strip, a coloured
+// title, and tool chips tinted in the same hue. Each class resolves per theme.
+const COLOR_MAP: Record<string, { bar: string; title: string; chip: string }> = {
+  blue:   { bar: 'bg-blue-600',   title: 'text-blue-400',   chip: 'bg-blue-950 text-blue-300 border-blue-800' },
+  purple: { bar: 'bg-purple-600', title: 'text-purple-400', chip: 'bg-purple-950 text-purple-300 border-purple-800' },
+  amber:  { bar: 'bg-amber-600',  title: 'text-amber-400',  chip: 'bg-amber-950 text-amber-300 border-amber-800' },
+  green:  { bar: 'bg-green-600',  title: 'text-green-400',  chip: 'bg-green-950 text-green-300 border-green-800' },
+  orange: { bar: 'bg-orange-600', title: 'text-orange-400', chip: 'bg-orange-950 text-orange-300 border-orange-800' },
 }
 
 function AgentBox({
@@ -221,25 +223,28 @@ function AgentBox({
 }) {
   const c = COLOR_MAP[color] || COLOR_MAP.blue
   return (
-    <div className={`${c.bg} ${c.border} border rounded-lg p-3 w-60`}>
-      <div className="flex items-center justify-between mb-1">
-        <span className={`text-sm font-medium ${c.text}`}>{name}</span>
-        <span className="text-[11px] text-gray-600">{LEVEL_LABELS[level]}</span>
-      </div>
-      <p className="text-[12px] text-gray-500 mb-2">{description}</p>
-      <div className="flex flex-wrap gap-1">
-        {tools.map((t) => (
-          <span
-            key={t}
-            className={`font-mono text-[11px] px-1.5 py-0.5 rounded ${
-              t === 'update_vendor_bank'
-                ? 'bg-red-900/50 text-red-400 border border-red-800'
-                : 'bg-gray-800 text-gray-300'
-            }`}
-          >
-            {t}
-          </span>
-        ))}
+    <div className="bg-gray-900 border border-gray-800 rounded-lg w-64 overflow-hidden shadow-sm">
+      <div className={`h-1 ${c.bar}`} />
+      <div className="p-3">
+        <div className={`font-mono text-[10px] uppercase tracking-[0.12em] mb-0.5 ${c.title}`}>
+          {LEVEL_LABELS[level]}
+        </div>
+        <div className={`font-display text-base font-semibold leading-tight mb-1 ${c.title}`}>{name}</div>
+        <p className="text-[12px] text-gray-400 mb-2.5">{description}</p>
+        <div className="flex flex-wrap gap-1">
+          {tools.map((t) => (
+            <span
+              key={t}
+              className={`font-mono text-[11px] px-1.5 py-0.5 rounded border ${
+                t === 'update_vendor_bank'
+                  ? 'bg-red-950 text-red-400 border-red-600 font-medium'
+                  : c.chip
+              }`}
+            >
+              {t}
+            </span>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -299,10 +304,10 @@ function CodeBlock({ code }: { code: string }) {
 function PipelineStep({ step }: { step: number }) {
   return (
     <div className="flex flex-col items-center w-8 flex-shrink-0 pt-3">
-      <div className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 flex items-center justify-center text-[11px] text-gray-400 font-medium">
+      <div className="w-6 h-6 rounded-full bg-blue-950 border border-blue-600 flex items-center justify-center font-mono text-[11px] text-blue-400 font-medium">
         {step}
       </div>
-      <div className="w-px flex-1 bg-gray-800 mt-1" />
+      <div className="w-px flex-1 bg-gray-700 mt-1" />
     </div>
   )
 }
@@ -311,12 +316,12 @@ function PipelineConnector({ label, loop }: { label: string; loop?: boolean }) {
   return (
     <div className="flex items-center gap-3 py-1">
       <div className="w-8 flex-shrink-0 flex justify-center">
-        <div className="w-px h-6 bg-gray-800" />
+        <div className="w-px h-6 bg-gray-700" />
       </div>
       <div className={`text-[11px] px-2 py-0.5 rounded ${
         loop
           ? 'text-blue-400 bg-blue-950/30 border border-blue-900/50'
-          : 'text-gray-500'
+          : 'text-gray-400'
       }`}>
         {loop ? `↩ ${label}` : `▼ ${label}`}
       </div>
