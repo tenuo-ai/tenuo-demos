@@ -66,6 +66,31 @@ def _serves_poisoned_invoice(attack_mode: str | None) -> bool:
     return attack_mode == "injection"
 
 
+# The batch in progress, so switching acts or resetting can stop it first.
+_run_task: asyncio.Task | None = None
+
+
+async def _stop_running_batch() -> None:
+    """Cancel the batch in progress, if any, and wait for it to stop.
+
+    Without this, a batch kept running in the background after an act switch
+    or reset and wrote into the next act's freshly reset data: an Act 2 run
+    could hijack the vendor's bank details in the middle of an Act 3 run.
+    Must run before the mode switch and the DB reset.
+    """
+    global _run_task
+    task, _run_task = _run_task, None
+    if task is None or task.done():
+        return
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=10)
+    if not done:
+        logger.error("Batch in progress did not stop within 10 s after cancellation")
+        return
+    logger.info("Stopped the batch in progress")
+    await publish({"type": "demo_cancelled"})
+
+
 # Demo state
 _demo_state = {
     "act": 1,
@@ -90,7 +115,8 @@ async def get_demo_state():
 
 @app.post("/api/act/{act}")
 async def set_act(act: int):
-    """Switch demo act (1, 2, or 3). Auto-resets DB for a clean slate."""
+    """Switch demo act (1, 2, or 3). Stops any batch in progress and resets the DB."""
+    await _stop_running_batch()
     _demo_state["act"] = act
     _demo_state["running"] = False
     if act == 1:
@@ -194,21 +220,23 @@ async def get_cloud_status():
 @app.post("/api/start")
 async def start_demo():
     """Start processing the invoice batch."""
+    global _run_task
     if _demo_state["running"]:
         return {"error": "Demo already running"}
 
     _demo_state["running"] = True
     await publish({"type": "demo_started", **_demo_state})
 
-    # Run the agent graph in background
-    asyncio.create_task(_run_agent_graph())
+    # Run the agent graph in background; keep the task so it can be stopped.
+    _run_task = asyncio.create_task(_run_agent_graph())
 
     return {"status": "started"}
 
 
 @app.post("/api/reset")
 async def reset_demo():
-    """Reset database and demo state."""
+    """Stop any batch in progress, then reset database and demo state."""
+    await _stop_running_batch()
     _demo_state["running"] = False
     _demo_state["act"] = 1
     _demo_state["attack_mode"] = None
