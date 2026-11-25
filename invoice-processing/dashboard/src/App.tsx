@@ -23,6 +23,7 @@ export default function App() {
   })
   const [hasLogs, setHasLogs] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState('INV-2024-1847')
+  const [showLogs, setShowLogs] = useState(true)
   const [demoError, setDemoError] = useState<string | null>(null)
 
   // Fetch initial state
@@ -110,6 +111,15 @@ export default function App() {
           <span className="text-blue-400 ml-2 animate-pulse">Processing batch...</span>
         )}
         <div className="flex-1" />
+        {!showArchitecture && (
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            aria-pressed={showLogs}
+            className="mr-3 px-2 py-0.5 rounded border border-gray-700 text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+          >
+            {showLogs ? 'Hide activity log' : 'Show activity log'}
+          </button>
+        )}
         {state.act === 3 && state.tenuo_mode === 'cloud' && !demoError && (
           <span className="text-blue-400 mr-2">Cloud mode — receipts streaming to Tenuo Cloud</span>
         )}
@@ -183,13 +193,15 @@ export default function App() {
       ) : (
         /* During/after processing: activity + invoice inspector + auth + DB */
         <div className="flex-1 flex overflow-hidden">
-          {/* Left column: Activity Log */}
-          <div className="w-1/2 border-r border-gray-800 flex flex-col">
-            <ToolCallLog />
-          </div>
+          {/* Left column: Activity Log (toggled from the status bar) */}
+          {showLogs && (
+            <div className="w-1/2 border-r border-gray-800 flex flex-col">
+              <ToolCallLog />
+            </div>
+          )}
 
-          {/* Right column: Invoice Inspector + Auth + DB state */}
-          <div className="w-1/2 overflow-y-auto">
+          {/* Right column: Invoice Inspector + Auth + DB state; full width when the log is hidden */}
+          <div className={`${showLogs ? 'w-1/2' : 'w-full'} overflow-y-auto`}>
             <InvoiceInspector
               attackMode={state.attack_mode}
               attackEnabled={state.attack_mode === 'injection'}
