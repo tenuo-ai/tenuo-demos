@@ -10,7 +10,7 @@ export function ArchitectureDiagram() {
   return (
     <div className="p-6 overflow-y-auto">
       <h2 className="font-display text-lg font-semibold text-gray-50 mb-6">
-        AP Automation Pipeline
+        Accounts Payable Automation Pipeline
       </h2>
 
       {/* Agent pipeline — shows actual sequential flow with delegation branches */}
