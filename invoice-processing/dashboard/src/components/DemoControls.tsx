@@ -2,6 +2,13 @@ import type { DemoState } from '../lib/types'
 import { setAct, setAttackMode, setTenuoMode, startDemo, resetDemo } from '../lib/api'
 import { useTheme } from '../lib/theme'
 
+const ATTACK_LABELS: Record<string, string> = {
+  off: 'Off',
+  injection: 'Injection',
+  prompt: 'Prompt',
+  simulate: 'Simulate',
+}
+
 const ATTACK_DESCRIPTIONS: Record<string, string> = {
   off: 'No attack: clean invoices, standard instructions',
   injection: 'Poisoned invoice: the vendor portal serves INV-2024-1847 with a fake bank-change note',
@@ -91,7 +98,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
                   : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
               }`}
             >
-              {mode}
+              {ATTACK_LABELS[mode]}
             </button>
           ))}
         </div>
