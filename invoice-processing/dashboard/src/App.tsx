@@ -148,7 +148,7 @@ export default function App() {
             <ArchitectureDiagram />
           </div>
           <div className="w-1/2 overflow-y-auto">
-            <InvoiceInspector attackEnabled={false} />
+            <InvoiceInspector attackMode={state.attack_mode} attackEnabled={false} />
             {state.attack_mode === 'prompt' && (
               <div className="border-t border-gray-800">
                 <AgentInstructions attackMode={state.attack_mode} />
@@ -183,7 +183,10 @@ export default function App() {
 
           {/* Right column: Invoice Inspector + Auth + DB state */}
           <div className="w-1/2 overflow-y-auto">
-            <InvoiceInspector attackEnabled={state.attack_mode === 'injection'} />
+            <InvoiceInspector
+              attackMode={state.attack_mode}
+              attackEnabled={state.attack_mode === 'injection'}
+            />
             {state.attack_mode === 'prompt' && (
               <div className="border-t border-gray-800">
                 <AgentInstructions attackMode={state.attack_mode} />

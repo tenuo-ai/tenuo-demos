@@ -5,7 +5,7 @@
  * This lets the presenter say: "Look at this invoice. Looks normal, right?
  * Now look at the notes field..."
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Invoice {
   id: string
@@ -21,11 +21,24 @@ interface Invoice {
   due_date: string | null
 }
 
-export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) {
+interface Props {
+  // Current attack mode. The vendor portal serves a different invoice per
+  // mode, so the inspector refetches whenever it changes.
+  attackMode: string | null
+  // Whether to flag the notes field as an injection payload.
+  attackEnabled: boolean
+}
+
+export function InvoiceInspector({ attackMode, attackEnabled }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [selected, setSelected] = useState<string>('INV-2024-1847')
 
+  // Only the newest request may update the panel, so a slow response from an
+  // earlier attack mode can't overwrite the current one.
+  const latestRequest = useRef(0)
+
   const fetchInvoices = async () => {
+      const request = ++latestRequest.current
       try {
         const ids = ['INV-2024-1841', 'INV-2024-1847', 'INV-2024-1843']
         const results = await Promise.all(
@@ -34,7 +47,9 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
             return res.json()
           })
         )
-        setInvoices(results.filter((r) => !r.error))
+        if (request === latestRequest.current) {
+          setInvoices(results.filter((r) => !r.error))
+        }
       } catch {
         // ignore
       }
@@ -42,7 +57,7 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
 
   useEffect(() => {
     fetchInvoices()
-  }, [attackEnabled])
+  }, [attackMode])
 
   const invoice = invoices.find((i) => i.id === selected)
 
