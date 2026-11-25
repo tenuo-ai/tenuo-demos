@@ -4,41 +4,60 @@ import type { AgentLog } from '../lib/types'
 
 // Agent color scheme
 const AGENT_COLORS: Record<string, { text: string; bg: string; border: string }> = {
-  'system':              { text: 'text-gray-400',   bg: 'bg-gray-800/50',   border: 'border-gray-700' },
-  'finance-controller':  { text: 'text-blue-400',   bg: 'bg-blue-950/30',   border: 'border-blue-800' },
-  'invoice-processor':   { text: 'text-purple-400', bg: 'bg-purple-950/30', border: 'border-purple-800' },
-  'payment-executor':    { text: 'text-amber-400',  bg: 'bg-amber-950/30',  border: 'border-amber-800' },
-  'expense-reviewer':    { text: 'text-cyan-400',   bg: 'bg-cyan-950/30',   border: 'border-cyan-800' },
-  'vendor-verification': { text: 'text-green-400',  bg: 'bg-green-950/30',  border: 'border-green-800' },
-  'fx-rate-checker':     { text: 'text-orange-400', bg: 'bg-orange-950/30', border: 'border-orange-800' },
+  'system':              { text: 'text-gray-400',   bg: 'bg-gray-900',   border: 'border-gray-700' },
+  'finance-controller':  { text: 'text-blue-400',   bg: 'bg-blue-950',   border: 'border-blue-800' },
+  'invoice-processor':   { text: 'text-purple-400', bg: 'bg-purple-950', border: 'border-purple-800' },
+  'payment-executor':    { text: 'text-amber-400',  bg: 'bg-amber-950',  border: 'border-amber-800' },
+  'expense-reviewer':    { text: 'text-cyan-400',   bg: 'bg-cyan-950',   border: 'border-cyan-800' },
+  'vendor-verification': { text: 'text-green-400',  bg: 'bg-green-950',  border: 'border-green-800' },
+  'fx-rate-checker':     { text: 'text-orange-400', bg: 'bg-orange-950', border: 'border-orange-800' },
 }
 
 function getColors(agentId: string) {
   return AGENT_COLORS[agentId] || AGENT_COLORS['system']
 }
 
+// Event type as a small mono tag, in the style of tenuo.ai's chips.
+const EVENT_TAGS: Record<string, { label: string; title: string; cls: string }> = {
+  thinking:    { label: 'think',  title: 'Agent reasoning', cls: 'text-gray-400 border-gray-700' },
+  tool_call:   { label: 'call',   title: 'Tool call',       cls: 'text-blue-300 border-blue-800' },
+  tool_result: { label: 'result', title: 'Tool result',     cls: 'text-gray-400 border-gray-700' },
+  delegation:  { label: 'deleg',  title: 'Delegation',      cls: 'text-purple-300 border-purple-800' },
+  tenuo_block: { label: 'block',  title: 'Tenuo blocked',   cls: 'text-green-300 border-green-700 bg-green-950' },
+  status:      { label: 'status', title: 'Status',          cls: 'text-gray-500 border-gray-800' },
+  warrant_minted: { label: 'mint', title: 'Warrant minted', cls: 'text-blue-300 border-blue-800' },
+}
+
 function EventIcon({ type }: { type: string }) {
-  switch (type) {
-    case 'thinking':      return <span title="Agent reasoning">💭</span>
-    case 'tool_call':     return <span title="Tool call">🔧</span>
-    case 'tool_result':   return <span title="Tool result">📋</span>
-    case 'delegation':    return <span title="Delegation">🔀</span>
-    case 'tenuo_block':   return <span title="Tenuo blocked">🛡</span>
-    case 'status':        return <span title="Status">📌</span>
-    default:              return <span>•</span>
-  }
+  const tag = EVENT_TAGS[type] ?? { label: type, title: type, cls: 'text-gray-500 border-gray-800' }
+  return (
+    <span
+      title={tag.title}
+      className={`inline-block w-12 shrink-0 text-center font-mono text-[11px] uppercase tracking-wider py-px rounded border ${tag.cls}`}
+    >
+      {tag.label}
+    </span>
+  )
 }
 
 export function ToolCallLog() {
   const [logs, setLogs] = useState<AgentLog[]>([])
   const [filter, setFilter] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Follow new entries only while the reader is at the bottom of the log.
+  const followRef = useRef(true)
 
   useEffect(() => {
+    followRef.current = true
     const poll = async () => {
       try {
-        const data = await fetchAgentLogs(filter || undefined)
-        setLogs(data)
+        const data: AgentLog[] = await fetchAgentLogs(filter || undefined)
+        // Keep the same array when nothing changed, so polling doesn't re-render or scroll.
+        setLogs((prev) =>
+          prev.length === data.length && prev[prev.length - 1]?.id === data[data.length - 1]?.id
+            ? prev
+            : data,
+        )
       } catch {
         // ignore
       }
@@ -48,12 +67,18 @@ export function ToolCallLog() {
     return () => clearInterval(interval)
   }, [filter])
 
-  // Auto-scroll to bottom when new logs arrive
+  const onScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    followRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48
+  }
+
+  // Scroll to the newest entry when one arrives, unless the reader has scrolled up.
+  const lastId = logs[logs.length - 1]?.id
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [logs])
+    const el = scrollRef.current
+    if (el && followRef.current) el.scrollTop = el.scrollHeight
+  }, [lastId])
 
   // Get unique agent IDs for filter buttons
   const agents = [...new Set(logs.map((l) => l.agent_id))].filter((a) => a !== 'system')
@@ -61,7 +86,7 @@ export function ToolCallLog() {
   return (
     <div className="p-4 flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+        <h2 className="eyebrow">
           Activity Log
         </h2>
         <div className="flex gap-1">
@@ -92,7 +117,7 @@ export function ToolCallLog() {
         </div>
       </div>
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 min-h-0">
+      <div ref={scrollRef} onScroll={onScroll} className="flex-1 overflow-y-auto space-y-1 min-h-0">
         {logs.map((log) => {
           const colors = getColors(log.agent_id)
           const isAttackTool = log.tool_name === 'update_vendor_bank'
@@ -102,9 +127,9 @@ export function ToolCallLog() {
               key={log.id}
               className={`text-xs px-2 py-1.5 rounded border-l-2 ${
                 log.event_type === 'tenuo_block'
-                  ? 'bg-green-950/40 border-l-green-500'
+                  ? 'bg-green-950 border-l-green-500'
                   : isAttackTool
-                  ? 'bg-red-950/40 border-l-red-500'
+                  ? 'bg-red-950 border-l-red-500'
                   : `${colors.bg} ${colors.border}`
               }`}
             >
@@ -126,21 +151,21 @@ export function ToolCallLog() {
 
               {log.event_type === 'tenuo_block' && (
                 <div className="mt-1">
-                  <span className="text-green-400 font-semibold">🛡 {log.tool_name}</span>
-                  <span className="text-green-600 ml-1 text-[10px]">not in task delegation</span>
+                  <span className="font-mono text-green-400 font-semibold">{log.tool_name}</span>
+                  <span className="text-green-600 ml-1 text-[11px]">not in task delegation</span>
                 </div>
               )}
 
               {log.event_type === 'tool_call' && (
                 <div className="mt-1">
-                  <span className={isAttackTool ? 'text-red-400 font-bold' : 'text-green-400'}>
+                  <span className={`font-mono ${isAttackTool ? 'text-red-400 font-bold' : 'text-blue-300'}`}>
                     {log.tool_name}
                   </span>
-                  <span className="text-gray-600 ml-1">
+                  <span className="font-mono text-gray-600 ml-1">
                     ({log.tool_args ? JSON.stringify(log.tool_args).slice(0, 80) : ''})
                   </span>
                   {isAttackTool && (
-                    <span className="ml-2 text-red-500 font-medium">⚠ ATTACK</span>
+                    <span className="ml-2 font-mono text-[11px] uppercase tracking-wider px-1.5 py-px rounded border border-red-800 bg-red-950 text-red-300">attack</span>
                   )}
                 </div>
               )}

@@ -3,7 +3,22 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tenuo Demo — AP Automation</title>
+    <title>Tenuo Demo — Accounts Payable Automation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=TASA+Explorer:wght@500;600;700&family=Lato:wght@400;700&family=DM+Mono:wght@400;500&display=swap"
+    />
+    <script>
+      // Apply the saved theme before first paint, so light mode doesn't flash dark.
+      try {
+        document.documentElement.dataset.theme =
+          localStorage.getItem('tenuo-demo-theme') === 'light' ? 'light' : 'dark'
+      } catch (e) {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -35,7 +35,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
     <div className="p-4 space-y-4">
       {/* Vendor Bank Details */}
       <div>
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">
+        <h2 className="eyebrow mb-2">
           Vendor Bank Details
         </h2>
         <table className="w-full text-xs">
@@ -80,7 +80,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
 
       {/* Clean-state confirmation — only meaningful in Act 3 where an attack was attempted and blocked */}
       {act === 3 && payments.length > 0 && bankChanges.length === 0 && (
-        <div className="text-[10px] text-green-700 mt-1">
+        <div className="text-[11px] text-green-700 mt-1">
           No unauthorized bank changes detected
         </div>
       )}
@@ -88,7 +88,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
       {/* Bank Change Audit */}
       {bankChanges.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-red-400 uppercase tracking-wider mb-2">
+          <h2 className="eyebrow text-red-400 mb-2">
             Bank Changes Detected
           </h2>
           {bankChanges.map((c) => (
@@ -111,7 +111,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
       {/* Recent Payments */}
       {payments.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">
+          <h2 className="eyebrow mb-2">
             Recent Payments
           </h2>
           <div className="space-y-1">
@@ -135,7 +135,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
                     {p.vendor_name}
                   </span>
                   {' $'}
-                  <span className="text-white">{p.amount.toLocaleString()}</span>
+                  <span className="text-gray-50">{p.amount.toLocaleString()}</span>
                   {toAttacker && (
                     <span className="ml-2 text-red-500 font-medium">
                       ⚠ SENT TO ATTACKER ACCOUNT

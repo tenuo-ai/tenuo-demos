@@ -5,7 +5,7 @@
  * This lets the presenter say: "Look at this invoice. Looks normal, right?
  * Now look at the notes field..."
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface Invoice {
   id: string
@@ -21,11 +21,26 @@ interface Invoice {
   due_date: string | null
 }
 
-export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) {
+interface Props {
+  // Current attack mode. The vendor portal serves a different invoice per
+  // mode, so the inspector refetches whenever it changes.
+  attackMode: string | null
+  // Whether to flag the notes field as an injection payload.
+  attackEnabled: boolean
+  // Selected invoice, shared with the warrant inspector.
+  selected: string
+  onSelect: (invoiceId: string) => void
+}
+
+export function InvoiceInspector({ attackMode, attackEnabled, selected, onSelect }: Props) {
   const [invoices, setInvoices] = useState<Invoice[]>([])
-  const [selected, setSelected] = useState<string>('INV-2024-1847')
+
+  // Only the newest request may update the panel, so a slow response from an
+  // earlier attack mode can't overwrite the current one.
+  const latestRequest = useRef(0)
 
   const fetchInvoices = async () => {
+      const request = ++latestRequest.current
       try {
         const ids = ['INV-2024-1841', 'INV-2024-1847', 'INV-2024-1843']
         const results = await Promise.all(
@@ -34,7 +49,9 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
             return res.json()
           })
         )
-        setInvoices(results.filter((r) => !r.error))
+        if (request === latestRequest.current) {
+          setInvoices(results.filter((r) => !r.error))
+        }
       } catch {
         // ignore
       }
@@ -42,21 +59,21 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
 
   useEffect(() => {
     fetchInvoices()
-  }, [attackEnabled])
+  }, [attackMode])
 
   const invoice = invoices.find((i) => i.id === selected)
 
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+        <h2 className="eyebrow">
           Invoice Inspector
         </h2>
         <div className="flex gap-1">
           {['INV-2024-1841', 'INV-2024-1847', 'INV-2024-1843'].map((id) => (
             <button
               key={id}
-              onClick={() => { setSelected(id); fetchInvoices() }}
+              onClick={() => { onSelect(id); fetchInvoices() }}
               className={`px-2 py-0.5 text-xs rounded ${
                 selected === id
                   ? id === 'INV-2024-1847'
@@ -87,7 +104,7 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
               </div>
               <div>
                 <span className="text-gray-600">Amount:</span>{' '}
-                <span className="text-white font-medium">
+                <span className="text-gray-50 font-medium">
                   ${invoice.amount.toLocaleString()} {invoice.currency}
                 </span>
               </div>
@@ -107,7 +124,7 @@ export function InvoiceInspector({ attackEnabled }: { attackEnabled: boolean }) 
             <div className="flex items-center gap-2 mb-1">
               <span className="text-xs text-gray-500">Notes field</span>
               {invoice.notes && invoice.id === 'INV-2024-1847' && attackEnabled && (
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 border border-red-800">
+                <span className="text-[11px] px-1.5 py-0.5 rounded bg-red-900/50 text-red-400 border border-red-800">
                   Contains injection payload
                 </span>
               )}

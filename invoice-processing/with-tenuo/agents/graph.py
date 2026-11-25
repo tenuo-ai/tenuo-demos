@@ -14,8 +14,11 @@ import logging
 import os
 
 import httpx
+from auth.warrant_view import log_warrant_minted
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph import END, StateGraph
+
+from attacks import describe_attack
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +91,7 @@ async def process_invoice_node(state: APState) -> dict:
                 )
             await log_status("finance-controller",
                 f"Attenuated warrant for invoice-processor (5 tools, NO update_vendor_bank)")
+            await log_warrant_minted("invoice-processor", processor_warrant, invoice_id)
         except Exception as e:
             # Fail closed: do NOT fall back to the root warrant which includes
             # update_vendor_bank. A degraded warrant is worse than no run.
@@ -187,6 +191,7 @@ async def execute_payment_node(state: APState) -> dict:
                 )
             await log_status("finance-controller",
                 f"Attenuated warrant for payment-executor (bank_account pinned from vendor master)")
+            await log_warrant_minted("payment-executor", payment_warrant, invoice_id)
         except Exception as e:
             # Fail closed: a root warrant is not bank-pinned and would allow
             # payment to the attacker's account. Abort.
@@ -303,7 +308,8 @@ async def run_demo(
         warrant_b64: Base64-encoded warrant from Tenuo Cloud (Act 3).
     """
     run_id = new_run()
-    await log_status("system", f"Starting demo run {run_id} (act={auth_stack}, attack={attack_mode})")
+    attack = describe_attack(attack_mode)
+    await log_status("system", f"Starting demo run {run_id} (act={auth_stack}) — attack: {attack}")
 
     if attack_mode == "injection":
         try:
@@ -317,6 +323,10 @@ async def run_demo(
         from auth.tenuo_local import issue_root_warrant
         warrant_b64 = issue_root_warrant()
         await log_status("system", "Issued Level 1 root warrant (12 tools, unconstrained)")
+
+    # Record the root (locally issued, or from Tenuo Cloud) for the warrant inspector.
+    if auth_stack == "tenuo" and warrant_b64:
+        await log_warrant_minted("finance-controller", warrant_b64)
 
     if attack_mode == "simulate":
         from attacks.mode3_simulated_compromise import simulate_attack

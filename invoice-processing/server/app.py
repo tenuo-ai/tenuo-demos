@@ -56,6 +56,41 @@ def _switch_mode(mode: str):
         del sys.modules[key]
     logger.info("Flushed %d cached module(s): %s", len(stale), stale)
 
+def _serves_poisoned_invoice(attack_mode: str | None) -> bool:
+    """Only the injection attack poisons the invoice the vendor portal serves.
+
+    The other attacks must run against a clean invoice so the presenter can
+    show where each one comes from: "prompt" tampers with the agent's own
+    instructions, and "simulate" bypasses the LLM entirely.
+    """
+    return attack_mode == "injection"
+
+
+# The batch in progress, so switching acts or resetting can stop it first.
+_run_task: asyncio.Task | None = None
+
+
+async def _stop_running_batch() -> None:
+    """Cancel the batch in progress, if any, and wait for it to stop.
+
+    Without this, a batch kept running in the background after an act switch
+    or reset and wrote into the next act's freshly reset data: an Act 2 run
+    could hijack the vendor's bank details in the middle of an Act 3 run.
+    Must run before the mode switch and the DB reset.
+    """
+    global _run_task
+    task, _run_task = _run_task, None
+    if task is None or task.done():
+        return
+    task.cancel()
+    done, _ = await asyncio.wait({task}, timeout=10)
+    if not done:
+        logger.error("Batch in progress did not stop within 10 s after cancellation")
+        return
+    logger.info("Stopped the batch in progress")
+    await publish({"type": "demo_cancelled"})
+
+
 # Demo state
 _demo_state = {
     "act": 1,
@@ -80,7 +115,8 @@ async def get_demo_state():
 
 @app.post("/api/act/{act}")
 async def set_act(act: int):
-    """Switch demo act (1, 2, or 3). Auto-resets DB for a clean slate."""
+    """Switch demo act (1, 2, or 3). Stops any batch in progress and resets the DB."""
+    await _stop_running_batch()
     _demo_state["act"] = act
     _demo_state["running"] = False
     if act == 1:
@@ -107,7 +143,7 @@ async def set_act(act: int):
     try:
         async with httpx.AsyncClient() as client:
             await client.post(
-                f"{VENDOR_PORTAL_URL}/admin/attack/{_demo_state['attack_mode'] is not None}"
+                f"{VENDOR_PORTAL_URL}/admin/attack/{_serves_poisoned_invoice(_demo_state['attack_mode'])}"
             )
     except httpx.ConnectError:
         pass
@@ -128,7 +164,7 @@ async def set_attack_mode(mode: str):
     try:
         async with httpx.AsyncClient() as client:
             await client.post(
-                f"{VENDOR_PORTAL_URL}/admin/attack/{mode != 'off'}"
+                f"{VENDOR_PORTAL_URL}/admin/attack/{_serves_poisoned_invoice(mode)}"
             )
     except httpx.ConnectError:
         pass  # Vendor portal may not be running
@@ -184,21 +220,23 @@ async def get_cloud_status():
 @app.post("/api/start")
 async def start_demo():
     """Start processing the invoice batch."""
+    global _run_task
     if _demo_state["running"]:
         return {"error": "Demo already running"}
 
     _demo_state["running"] = True
     await publish({"type": "demo_started", **_demo_state})
 
-    # Run the agent graph in background
-    asyncio.create_task(_run_agent_graph())
+    # Run the agent graph in background; keep the task so it can be stopped.
+    _run_task = asyncio.create_task(_run_agent_graph())
 
     return {"status": "started"}
 
 
 @app.post("/api/reset")
 async def reset_demo():
-    """Reset database and demo state."""
+    """Stop any batch in progress, then reset database and demo state."""
+    await _stop_running_batch()
     _demo_state["running"] = False
     _demo_state["act"] = 1
     _demo_state["attack_mode"] = None
@@ -442,6 +480,56 @@ async def proxy_invoice(invoice_id: str):
             return resp.json()
     except httpx.ConnectError:
         return {"error": "Vendor portal not available"}
+
+
+@app.get("/api/agent-instructions/invoice-processor")
+async def invoice_processor_instructions():
+    """The Invoice Processor's system prompt for the current attack mode.
+
+    In "prompt" mode, returns the block the attacker appended separately so
+    the dashboard can highlight it.
+    """
+    from agents.prompts import INVOICE_PROCESSOR_PROMPT, INVOICE_PROCESSOR_TAMPERED_BLOCK
+
+    tampered = _demo_state["attack_mode"] == "prompt"
+    return {
+        "attack_mode": _demo_state["attack_mode"],
+        "tampered": tampered,
+        "instructions": INVOICE_PROCESSOR_PROMPT,
+        "tampered_block": INVOICE_PROCESSOR_TAMPERED_BLOCK if tampered else None,
+    }
+
+
+@app.get("/api/warrants")
+async def get_minted_warrants(invoice_id: str | None = None):
+    """Warrants minted in the most recent run, decoded, for the warrant inspector.
+
+    Returns the root warrant plus the child warrants minted for invoice_id
+    (or for every invoice when it is omitted), in the order they were minted.
+    Empty unless the run used the Tenuo auth stack.
+    """
+    from tools.db import get_pool
+    pool = await get_pool()
+
+    run_id = await pool.fetchval("SELECT run_id FROM agent_logs ORDER BY created_at DESC LIMIT 1")
+    if not run_id:
+        return []
+
+    rows = await pool.fetch(
+        "SELECT metadata, created_at FROM agent_logs "
+        "WHERE run_id = $1 AND event_type = 'warrant_minted' ORDER BY created_at ASC",
+        run_id,
+    )
+    warrants = []
+    for row in rows:
+        meta = json.loads(row["metadata"]) if isinstance(row["metadata"], str) else row["metadata"]
+        if not meta:
+            continue
+        child_invoice = meta.get("invoice_id")
+        if invoice_id and child_invoice and child_invoice != invoice_id:
+            continue
+        warrants.append({**meta, "minted_at": row["created_at"].isoformat()})
+    return warrants
 
 
 @app.get("/api/db/bank-changes")

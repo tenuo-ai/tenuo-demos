@@ -1,7 +1,48 @@
+@import "./theme.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* Tenuo brand. Colours are CSS variables per theme (theme.css), mapped onto
+   Tailwind in tailwind.config.js; the fonts are loaded in index.html. */
+
 body {
-  @apply bg-gray-950 text-gray-100 font-mono;
+  @apply bg-gray-950 text-gray-200 font-sans antialiased;
+}
+
+@layer components {
+  /* Section label, as on tenuo.ai: DM Mono, uppercase, letter-spaced, Signal Blue. */
+  .eyebrow {
+    @apply font-mono text-[14px] font-medium uppercase text-blue-300;
+    letter-spacing: 0.14em;
+  }
+
+  /* Data, identifiers and code read in DM Mono. */
+  code,
+  pre,
+  kbd {
+    @apply font-mono;
+  }
+}
+
+/* Light theme: white panels need more separation from the page than the
+   shared rule colour gives, so borders are crisper and panels get a soft
+   shadow, as cards on tenuo.ai do. Dark mode is unchanged. */
+:root[data-theme="light"] .border-gray-800 {
+  border-color: rgb(211 215 222);
+}
+
+:root[data-theme="light"] .bg-gray-900 {
+  box-shadow: 0 1px 2px rgb(8 17 22 / 0.06), 0 2px 8px rgb(8 17 22 / 0.05);
+}
+
+:focus-visible {
+  outline: 2px solid #73a5ff;
+  outline-offset: 2px;
+}
+
+::selection {
+  background: #305ba9;
+  color: #ffffff;
 }

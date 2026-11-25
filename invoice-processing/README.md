@@ -68,7 +68,23 @@ The server switches between baseline and with-tenuo when you run `switch-mode.sh
 
 **Act 3 — Tenuo:** Same attack. The warrant says `bank_account` must be `7291034851`. The agent tries `8847291034`. Denied.
 
+In Act 3 the dashboard's **Warrant inspector** shows the decoded warrants minted during the run for the invoice selected in the Invoice Inspector: the Finance Controller's root warrant and the two narrower warrants it attenuates for the Invoice Processor (no `update_vendor_bank`) and the Payment Executor (`bank_account`, `bank_routing` and `vendor_id` pinned with `Exact`). Each child's `issuer` is the root's `holder`, and its `parent_hash` binds it to the root. **Copy token** copies the full base64 warrant.
+
 See [DIFF.md](DIFF.md) for the exact code changes between baseline and with-tenuo.
+
+### Attack modes
+
+In Acts 2 and 3 the dashboard's **Attack** buttons choose how the Invoice Processor is turned against the company. Each one ends in the same malicious call, `update_vendor_bank` to the attacker's account, so the same Tenuo denial applies to all of them.
+
+| Button | Where the attack lives | What the dashboard shows |
+|--------|------------------------|--------------------------|
+| `injection` (default) | A fake bank-change note in the notes of invoice INV-2024-1847, served by the vendor portal | The Invoice Inspector flags the note as an injection payload |
+| `prompt` | A block appended to the Invoice Processor's system prompt; the invoice stays clean | The Invoice Processor instructions panel highlights the added block |
+| `simulate` | Nowhere: the LLM is bypassed and the malicious call is sent straight to the auth layers | The activity feed shows the direct call; use this when the LLM is unavailable |
+
+With `prompt` in Act 3, INV-2024-1847 usually ends up held rather than paid. The tampered instructions tell the agent to update the bank details before approving, so when Tenuo denies the update the agent stops and escalates instead of approving, and the Payment Executor won't pay an unapproved invoice.
+
+Switching attack buttons doesn't reset the database. Click the Act button again before running a different attack.
 
 ## Modes
 

@@ -17,6 +17,9 @@ from attacks.payloads import ATTACKER_BANK_ACCOUNT, ATTACKER_BANK_ROUTING
 from auth.pipeline import evaluate_all_layers
 from tools.vendor_tools import update_vendor_bank
 
+# The simulated attack rewrites Acme's (V-4521) bank details, the vendor on this invoice.
+TARGET_INVOICE_ID = "INV-2024-1847"
+
 
 def _cloud_mode() -> bool:
     return os.environ.get("TENUO_MODE", "local") == "cloud"
@@ -96,6 +99,12 @@ async def simulate_attack(
                             content="Blocked: update_vendor_bank · warrant attenuation failed",
                             tool_name="update_vendor_bank")
         else:
+            # Show the Invoice Processor's warrant in the dashboard's warrant
+            # inspector, under the invoice whose vendor the attack targets.
+            # Display only: this never raises.
+            from auth.warrant_view import log_warrant_minted
+            await log_warrant_minted("invoice-processor", proc_warrant_b64, TARGET_INVOICE_ID)
+
             # The same node a real Act 3 run uses: the SDK authorizes the call
             # (signature, expiry, tools, constraints) and the node logs the
             # standard layers and the Tenuo decision for the dashboard.
