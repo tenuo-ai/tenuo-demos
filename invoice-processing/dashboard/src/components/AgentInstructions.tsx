@@ -31,7 +31,7 @@ export function AgentInstructions({ attackMode }: { attackMode: string | null })
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+        <h2 className="eyebrow">
           Invoice Processor instructions
         </h2>
         {data.tampered && (
@@ -52,7 +52,7 @@ export function AgentInstructions({ attackMode }: { attackMode: string | null })
 
         {data.tampered_block && (
           <div className="px-3 py-3 border-t border-red-800 bg-red-950/30 text-red-300">
-            <div className="text-[10px] font-sans uppercase tracking-wider text-red-400 mb-2">
+            <div className="eyebrow text-[10px] text-red-400 mb-2">
               Added by attacker
             </div>
             {data.tampered_block}

@@ -36,15 +36,23 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
   }
 
   return (
-    <div className="flex items-center gap-6 p-4 bg-gray-900 border-b border-gray-800">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 bg-navy border-b border-gray-800">
+      {/* Brand */}
+      <div className="flex items-center gap-3 pr-4 border-r border-gray-800">
+        <img src="/tenuo-logo-light.png" alt="Tenuo" className="h-5 w-auto" />
+        <span className="hidden 2xl:inline font-display text-sm font-semibold text-gray-200 whitespace-nowrap">
+          Invoice processing demo
+        </span>
+      </div>
+
       {/* Act selector */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500 uppercase tracking-wider">Act</span>
+        <span className="eyebrow text-gray-500">Act</span>
         {[1, 2, 3].map((act) => (
           <button
             key={act}
             onClick={() => handleAct(act)}
-            className={`px-3 py-1 text-sm rounded transition-colors ${
+            className={`px-2.5 py-1 text-[13px] font-medium rounded whitespace-nowrap transition-colors ${
               state.act === act
                 ? act === 1
                   ? 'bg-blue-600 text-white'
@@ -62,13 +70,13 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       {/* Attack mode — hidden in Act 1 */}
       {state.act !== 1 && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 uppercase tracking-wider">Attack</span>
+          <span className="eyebrow text-gray-500">Attack</span>
           {['off', 'injection', 'prompt', 'simulate'].map((mode) => (
             <button
               key={mode}
               onClick={() => handleAttack(mode)}
               title={ATTACK_DESCRIPTIONS[mode]}
-              className={`px-3 py-1 text-sm rounded transition-colors ${
+              className={`px-2.5 py-1 text-[13px] font-medium rounded whitespace-nowrap transition-colors ${
                 (state.attack_mode ?? 'off') === mode
                   ? mode === 'off'
                     ? 'bg-gray-600 text-white'
@@ -84,7 +92,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
 
       {/* Auth stack indicator */}
       <div className="flex items-center gap-2">
-        <span className="text-xs text-gray-500 uppercase tracking-wider">Auth</span>
+        <span className="eyebrow text-gray-500">Auth</span>
         <span
           className={`px-3 py-1 text-sm rounded ${
             state.auth_stack === 'tenuo'
@@ -99,7 +107,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       {/* Tenuo mode toggle — visible in Act 3 */}
       {state.act === 3 && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-gray-500 uppercase tracking-wider">Mode</span>
+          <span className="eyebrow text-gray-500">Mode</span>
           {['local', 'cloud'].map((mode) => (
             <button
               key={mode}
@@ -112,7 +120,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
                   ? 'Requires Tenuo Cloud credentials — see README for setup'
                   : undefined
               }
-              className={`px-3 py-1 text-sm rounded transition-colors ${
+              className={`px-2.5 py-1 text-[13px] font-medium rounded whitespace-nowrap transition-colors ${
                 state.tenuo_mode === mode
                   ? mode === 'cloud'
                     ? 'bg-blue-600 text-white'
@@ -126,15 +134,15 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
         </div>
       )}
 
-      {/* Spacer */}
-      <div className="flex-1" />
+      {/* Actions stay on the right, also when the bar wraps */}
+      <div className="ml-auto flex items-center gap-2">
 
       {/* Action buttons — hidden in Act 1 (overview only) */}
       {state.act !== 1 && (
         <button
           onClick={handleStart}
           disabled={state.running}
-          className={`px-5 py-2 rounded font-medium transition-colors ${
+          className={`px-4 py-1.5 rounded font-bold whitespace-nowrap transition-colors ${
             state.running
               ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
               : 'bg-blue-600 text-white hover:bg-blue-500'
@@ -145,10 +153,11 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       )}
       <button
         onClick={handleReset}
-        className="px-4 py-2 rounded font-medium bg-gray-800 text-gray-300 hover:bg-gray-700 transition-colors"
+        className="px-3 py-1.5 rounded font-bold whitespace-nowrap border border-gray-700 text-gray-200 hover:bg-gray-800 transition-colors"
       >
         Reset
       </button>
+      </div>
     </div>
   )
 }

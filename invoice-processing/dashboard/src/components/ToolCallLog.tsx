@@ -17,16 +17,27 @@ function getColors(agentId: string) {
   return AGENT_COLORS[agentId] || AGENT_COLORS['system']
 }
 
+// Event type as a small mono tag, in the style of tenuo.ai's chips.
+const EVENT_TAGS: Record<string, { label: string; title: string; cls: string }> = {
+  thinking:    { label: 'think',  title: 'Agent reasoning', cls: 'text-gray-400 border-gray-700' },
+  tool_call:   { label: 'call',   title: 'Tool call',       cls: 'text-blue-300 border-blue-800' },
+  tool_result: { label: 'result', title: 'Tool result',     cls: 'text-gray-400 border-gray-700' },
+  delegation:  { label: 'deleg',  title: 'Delegation',      cls: 'text-purple-300 border-purple-800' },
+  tenuo_block: { label: 'block',  title: 'Tenuo blocked',   cls: 'text-green-300 border-green-700 bg-green-950' },
+  status:      { label: 'status', title: 'Status',          cls: 'text-gray-500 border-gray-800' },
+  warrant_minted: { label: 'mint', title: 'Warrant minted', cls: 'text-blue-300 border-blue-800' },
+}
+
 function EventIcon({ type }: { type: string }) {
-  switch (type) {
-    case 'thinking':      return <span title="Agent reasoning">💭</span>
-    case 'tool_call':     return <span title="Tool call">🔧</span>
-    case 'tool_result':   return <span title="Tool result">📋</span>
-    case 'delegation':    return <span title="Delegation">🔀</span>
-    case 'tenuo_block':   return <span title="Tenuo blocked">🛡</span>
-    case 'status':        return <span title="Status">📌</span>
-    default:              return <span>•</span>
-  }
+  const tag = EVENT_TAGS[type] ?? { label: type, title: type, cls: 'text-gray-500 border-gray-800' }
+  return (
+    <span
+      title={tag.title}
+      className={`inline-block w-12 shrink-0 text-center font-mono text-[9px] uppercase tracking-wider py-px rounded border ${tag.cls}`}
+    >
+      {tag.label}
+    </span>
+  )
 }
 
 export function ToolCallLog() {
@@ -61,7 +72,7 @@ export function ToolCallLog() {
   return (
     <div className="p-4 flex flex-col h-full">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+        <h2 className="eyebrow">
           Activity Log
         </h2>
         <div className="flex gap-1">
@@ -126,21 +137,21 @@ export function ToolCallLog() {
 
               {log.event_type === 'tenuo_block' && (
                 <div className="mt-1">
-                  <span className="text-green-400 font-semibold">🛡 {log.tool_name}</span>
+                  <span className="font-mono text-green-400 font-semibold">{log.tool_name}</span>
                   <span className="text-green-600 ml-1 text-[10px]">not in task delegation</span>
                 </div>
               )}
 
               {log.event_type === 'tool_call' && (
                 <div className="mt-1">
-                  <span className={isAttackTool ? 'text-red-400 font-bold' : 'text-green-400'}>
+                  <span className={`font-mono ${isAttackTool ? 'text-red-400 font-bold' : 'text-blue-300'}`}>
                     {log.tool_name}
                   </span>
-                  <span className="text-gray-600 ml-1">
+                  <span className="font-mono text-gray-600 ml-1">
                     ({log.tool_args ? JSON.stringify(log.tool_args).slice(0, 80) : ''})
                   </span>
                   {isAttackTool && (
-                    <span className="ml-2 text-red-500 font-medium">⚠ ATTACK</span>
+                    <span className="ml-2 font-mono text-[10px] uppercase tracking-wider px-1.5 py-px rounded border border-red-800 bg-red-950 text-red-300">attack</span>
                   )}
                 </div>
               )}

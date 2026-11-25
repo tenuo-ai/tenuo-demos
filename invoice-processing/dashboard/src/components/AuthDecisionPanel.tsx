@@ -75,7 +75,7 @@ export function AuthDecisionPanel() {
   if (summaries.length === 0) {
     return (
       <div className="p-4">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
+        <h2 className="eyebrow mb-3">
           Authorization Decisions
         </h2>
         <div className="text-gray-600 text-sm text-center py-4">
@@ -87,7 +87,7 @@ export function AuthDecisionPanel() {
 
   return (
     <div className="p-4">
-      <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-4">
+      <h2 className="eyebrow mb-4">
         Authorization Decisions
       </h2>
 
@@ -131,7 +131,7 @@ export function AuthDecisionPanel() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className={`text-sm font-medium ${isSimulation ? 'text-orange-300' : 'text-gray-200'}`}>
-                      {isSimulation ? '⚡ Simulated Attack' : inv.id}
+                      {isSimulation ? 'Simulated attack' : inv.id}
                     </span>
                     {!isSimulation && <span className="text-xs text-gray-500">{inv.vendor_name}</span>}
                     {inv.amount != null && (

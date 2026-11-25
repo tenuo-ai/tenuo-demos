@@ -220,7 +220,7 @@ function WarrantCard({ minted, root, all, open, onToggle, children }: CardProps)
       {/* Warrants delegated from this one, nested so the cascade is visible */}
       {open && children && (
         <div className="ml-4 mr-2 mb-2 pl-3 border-l border-gray-700 space-y-2">
-          <div className="text-[10px] uppercase tracking-wider text-gray-600 pt-1">Delegated to</div>
+          <div className="eyebrow text-[10px] text-gray-500 pt-1">Delegated to</div>
           {children}
         </div>
       )}
@@ -319,11 +319,11 @@ export function WarrantInspector({ invoiceId }: { invoiceId: string }) {
         <button
           onClick={() => setPanelOpen(!panelOpen)}
           aria-expanded={panelOpen}
-          className="text-left text-sm font-medium text-gray-400 uppercase tracking-wider hover:text-gray-300"
+          className="eyebrow text-left hover:text-blue-200"
         >
           <span className="inline-block w-4">{panelOpen ? '▾' : '▸'}</span>Warrant inspector
           {!panelOpen && warrants.length > 0 && (
-            <span className="normal-case tracking-normal text-xs text-gray-600"> · {warrants.length} warrants</span>
+            <span className="font-sans normal-case tracking-normal text-xs text-gray-500"> · {warrants.length} warrants</span>
           )}
         </button>
         <div className="flex items-center gap-2 shrink-0">

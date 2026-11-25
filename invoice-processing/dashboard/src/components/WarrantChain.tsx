@@ -44,7 +44,7 @@ export function WarrantChain() {
 
   return (
     <div className="p-4">
-      <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-3">
+      <h2 className="eyebrow mb-3">
         Warrant Delegation Chain
       </h2>
 

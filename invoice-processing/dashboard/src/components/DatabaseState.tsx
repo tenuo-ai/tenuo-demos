@@ -35,7 +35,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
     <div className="p-4 space-y-4">
       {/* Vendor Bank Details */}
       <div>
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">
+        <h2 className="eyebrow mb-2">
           Vendor Bank Details
         </h2>
         <table className="w-full text-xs">
@@ -88,7 +88,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
       {/* Bank Change Audit */}
       {bankChanges.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-red-400 uppercase tracking-wider mb-2">
+          <h2 className="eyebrow text-red-400 mb-2">
             Bank Changes Detected
           </h2>
           {bankChanges.map((c) => (
@@ -111,7 +111,7 @@ export function DatabaseState({ act = 1 }: { act?: number }) {
       {/* Recent Payments */}
       {payments.length > 0 && (
         <div>
-          <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider mb-2">
+          <h2 className="eyebrow mb-2">
             Recent Payments
           </h2>
           <div className="space-y-1">

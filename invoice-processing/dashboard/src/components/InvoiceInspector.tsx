@@ -66,7 +66,7 @@ export function InvoiceInspector({ attackMode, attackEnabled, selected, onSelect
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+        <h2 className="eyebrow">
           Invoice Inspector
         </h2>
         <div className="flex gap-1">

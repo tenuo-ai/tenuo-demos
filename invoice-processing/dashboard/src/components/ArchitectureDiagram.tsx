@@ -9,7 +9,7 @@ export function ArchitectureDiagram() {
 
   return (
     <div className="p-6 overflow-y-auto">
-      <h2 className="text-lg font-medium text-gray-200 mb-6">
+      <h2 className="font-display text-2xl font-semibold text-white mb-6">
         AP Automation Pipeline
       </h2>
 
@@ -93,7 +93,7 @@ export function ArchitectureDiagram() {
       {/* Auth stack — detailed */}
       <div className="border-t border-gray-800 pt-5">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-gray-400 uppercase tracking-wider">
+          <h3 className="eyebrow">
             Authorization Stack — Defense in Depth
           </h3>
           <span className="text-[10px] text-gray-600">
@@ -104,7 +104,7 @@ export function ArchitectureDiagram() {
         <div className="space-y-2">
           <AuthLayerDetail
             name="Layer 1: GCP Service Accounts + Workload Identity"
-            icon="🔑"
+            icon="L1"
             expanded={expandedLayer === 'gcp'}
             onToggle={() => setExpandedLayer(expandedLayer === 'gcp' ? null : 'gcp')}
             summary="Per-agent identity with least-privilege IAM roles"
@@ -124,7 +124,7 @@ export function ArchitectureDiagram() {
 
           <AuthLayerDetail
             name="Layer 2: OAuth 2.0 Token Exchange"
-            icon="🎫"
+            icon="L2"
             expanded={expandedLayer === 'oauth'}
             onToggle={() => setExpandedLayer(expandedLayer === 'oauth' ? null : 'oauth')}
             summary="Narrow scopes per resource type — invoices:read, vendors:write, payments:execute"
@@ -142,7 +142,7 @@ export function ArchitectureDiagram() {
 
           <AuthLayerDetail
             name="Layer 3: SpiceDB (Google Zanzibar)"
-            icon="🔗"
+            icon="L3"
             expanded={expandedLayer === 'spicedb'}
             onToggle={() => setExpandedLayer(expandedLayer === 'spicedb' ? null : 'spicedb')}
             summary="Relationship-based RBAC — object-level granularity, not just roles"
@@ -168,7 +168,7 @@ vendor:V-4521#editor@agent:vendor-verification`} />
 
           <AuthLayerDetail
             name="Layer 4: OPA Policy Engine (Rego)"
-            icon="📜"
+            icon="L4"
             expanded={expandedLayer === 'opa'}
             onToggle={() => setExpandedLayer(expandedLayer === 'opa' ? null : 'opa')}
             summary="Context-aware policies with rate limits, amount thresholds, vendor verification requirements"
@@ -231,10 +231,10 @@ function AgentBox({
         {tools.map((t) => (
           <span
             key={t}
-            className={`text-[10px] px-1.5 py-0.5 rounded ${
+            className={`font-mono text-[10px] px-1.5 py-0.5 rounded ${
               t === 'update_vendor_bank'
                 ? 'bg-red-900/50 text-red-400 border border-red-800'
-                : 'bg-gray-800 text-gray-500'
+                : 'bg-gray-800 text-gray-300'
             }`}
           >
             {t}
@@ -257,7 +257,7 @@ function AuthLayerDetail({
         onClick={onToggle}
         className="w-full px-3 py-2.5 flex items-center gap-2 text-left hover:bg-gray-800/50 transition-colors"
       >
-        <span className="text-sm">{icon}</span>
+        <span className="w-7 shrink-0 text-center font-mono text-[10px] font-medium py-px rounded border border-blue-800 text-blue-300">{icon}</span>
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium text-gray-200">{name}</div>
           <div className="text-[10px] text-gray-500 truncate">{summary}</div>
