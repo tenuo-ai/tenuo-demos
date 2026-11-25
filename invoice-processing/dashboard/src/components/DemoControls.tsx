@@ -54,12 +54,12 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
 
       {/* Act selector */}
       <div className="flex items-center gap-2">
-        <span className="hidden 2xl:inline eyebrow text-gray-500">Act</span>
+        <span className="hidden 2xl:inline eyebrow text-xs text-gray-500">Act</span>
         {[1, 2, 3].map((act) => (
           <button
             key={act}
             onClick={() => handleAct(act)}
-            className={`px-2.5 py-1 text-[13px] font-medium rounded whitespace-nowrap transition-colors ${
+            className={`px-3 py-1 text-sm font-medium rounded whitespace-nowrap transition-colors ${
               state.act === act
                 ? act === 1
                   ? 'bg-blue-600 text-white'
@@ -77,13 +77,13 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       {/* Attack mode — hidden in Act 1 */}
       {state.act !== 1 && (
         <div className="flex items-center gap-2">
-          <span className="hidden 2xl:inline eyebrow text-gray-500">Attack</span>
+          <span className="hidden 2xl:inline eyebrow text-xs text-gray-500">Attack</span>
           {['off', 'injection', 'prompt', 'simulate'].map((mode) => (
             <button
               key={mode}
               onClick={() => handleAttack(mode)}
               title={ATTACK_DESCRIPTIONS[mode]}
-              className={`px-2.5 py-1 text-[13px] font-medium rounded whitespace-nowrap transition-colors ${
+              className={`px-3 py-1 text-sm font-medium rounded whitespace-nowrap transition-colors ${
                 (state.attack_mode ?? 'off') === mode
                   ? mode === 'off'
                     ? 'bg-gray-600 text-white'
@@ -99,7 +99,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
 
       {/* Auth stack indicator */}
       <div className="flex items-center gap-2">
-        <span className="hidden 2xl:inline eyebrow text-gray-500">Auth</span>
+        <span className="hidden 2xl:inline eyebrow text-xs text-gray-500">Auth</span>
         <span
           className={`px-3 py-1 text-sm rounded ${
             state.auth_stack === 'tenuo'
@@ -114,7 +114,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       {/* Tenuo mode toggle — visible in Act 3 */}
       {state.act === 3 && (
         <div className="flex items-center gap-2">
-          <span className="hidden 2xl:inline eyebrow text-gray-500">Mode</span>
+          <span className="hidden 2xl:inline eyebrow text-xs text-gray-500">Mode</span>
           {['local', 'cloud'].map((mode) => (
             <button
               key={mode}
@@ -127,7 +127,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
                   ? 'Requires Tenuo Cloud credentials — see README for setup'
                   : undefined
               }
-              className={`px-2.5 py-1 text-[13px] font-medium rounded whitespace-nowrap transition-colors ${
+              className={`px-3 py-1 text-sm font-medium rounded whitespace-nowrap transition-colors ${
                 state.tenuo_mode === mode
                   ? mode === 'cloud'
                     ? 'bg-blue-600 text-white'
@@ -149,7 +149,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
         <button
           onClick={handleStart}
           disabled={state.running}
-          className={`px-4 py-1.5 rounded font-bold whitespace-nowrap transition-colors ${
+          className={`px-5 py-2 rounded font-bold whitespace-nowrap transition-colors ${
             state.running
               ? 'bg-gray-700 text-gray-500 cursor-not-allowed'
               : 'bg-blue-600 text-white hover:bg-blue-500'
@@ -160,7 +160,7 @@ export function DemoControls({ state, onStateChange, onReset }: Props) {
       )}
       <button
         onClick={handleReset}
-        className="px-3 py-1.5 rounded font-bold whitespace-nowrap border border-gray-700 text-gray-200 hover:bg-gray-800 transition-colors"
+        className="px-4 py-2 rounded font-bold whitespace-nowrap border border-gray-700 text-gray-200 hover:bg-gray-800 transition-colors"
       >
         Reset
       </button>

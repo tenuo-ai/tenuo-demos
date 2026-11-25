@@ -33,7 +33,7 @@ function EventIcon({ type }: { type: string }) {
   return (
     <span
       title={tag.title}
-      className={`inline-block w-12 shrink-0 text-center font-mono text-[9px] uppercase tracking-wider py-px rounded border ${tag.cls}`}
+      className={`inline-block w-12 shrink-0 text-center font-mono text-[10px] uppercase tracking-wider py-px rounded border ${tag.cls}`}
     >
       {tag.label}
     </span>

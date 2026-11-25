@@ -9,14 +9,12 @@
 
 body {
   @apply bg-gray-950 text-gray-200 font-sans antialiased;
-  font-size: 14px;
-  line-height: 1.5;
 }
 
 @layer components {
   /* Section label, as on tenuo.ai: DM Mono, uppercase, letter-spaced, Signal Blue. */
   .eyebrow {
-    @apply font-mono text-xs font-medium uppercase text-blue-300;
+    @apply font-mono text-sm font-medium uppercase text-blue-300;
     letter-spacing: 0.14em;
   }
 
