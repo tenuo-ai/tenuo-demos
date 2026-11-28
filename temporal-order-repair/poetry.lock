@@ -2405,17 +2405,17 @@ strands-agents = ["strands-agents (>=1.39.0)"]
 
 [[package]]
 name = "tenuo"
-version = "0.3.8"
+version = "0.3.9"
 description = "Task-scoped authorization for AI agents: signed warrants limit which tools an agent can call, with which arguments, and for how long. Adapters for LangChain, LangGraph, CrewAI, OpenAI Agents SDK, Google ADK, AutoGen, MCP, FastMCP, A2A, FastAPI, and Temporal."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "tenuo-0.3.8-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:e693a779e193e47703115a49baca49d5c36b380b0c7ddf0d8ff12835f9092d50"},
-    {file = "tenuo-0.3.8-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:35ee0ca683024a2aa882e0de15b8318441938e01f4927e7a4979612690849f8c"},
-    {file = "tenuo-0.3.8-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:5fb557db0d6bea92b0ff13c4675eaead019b2a2d29a9c4f2f42e741fa3a6a96f"},
-    {file = "tenuo-0.3.8-cp39-abi3-win_amd64.whl", hash = "sha256:0941d164b5d5a6a83264598803fb0ded968fe6c9bc26a705d6d07e7b66ad8a65"},
-    {file = "tenuo-0.3.8.tar.gz", hash = "sha256:91619fecc990f9dfb6a563f5b0d5a952dad0ee044b4000f51413f84826789ab5"},
+    {file = "tenuo-0.3.9-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:91fdf722622bae99a6f6484d3201b6d4d06379cd0f4548bee4f5d3bfb2726e56"},
+    {file = "tenuo-0.3.9-cp39-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:0256ce0f519c0492184fea4380a97d14eaf0769b02e2da388e0840c9adf548b4"},
+    {file = "tenuo-0.3.9-cp39-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:55d526e9b0f228060f91bf71ca4332e60807d391cd77b06654757a9b60b30c6b"},
+    {file = "tenuo-0.3.9-cp39-abi3-win_amd64.whl", hash = "sha256:c0667ab61998763020360c53822be54fae8004bcce1330804d2ee058e4893eff"},
+    {file = "tenuo-0.3.9.tar.gz", hash = "sha256:d2305d7b8df7a31d6208d82a7ed4289904dc8c974d84d778eb5401ec72c835cd"},
 ]
 
 [package.dependencies]
@@ -2429,14 +2429,18 @@ autogen = ["autogen-agentchat (>=0.7.0) ; python_full_version >= \"3.10.0\"", "a
 cli = ["rich (>=10.0.0)"]
 cloud = ["tenuo-cloud (>=0.2,<0.3)"]
 crewai = ["crewai (>=1.5) ; python_full_version >= \"3.10.0\""]
-dev = ["hypothesis (>=6.0)", "langchain-openai", "maturin (>=1.9.3)", "mypy (>=1.0)", "pytest (>=7.0)", "pytest-asyncio", "ruff (>=0.1.0)", "tenuo[a2a,autogen,crewai,fastapi,fastmcp,google-adk,langchain,langgraph,mcp,openai,temporal]", "types-jsonschema", "types-pyyaml", "types-requests", "uvicorn"]
+dev = ["hypothesis (>=6.0)", "langchain-openai", "maturin (>=1.9.3)", "mypy (>=1.0)", "pytest (>=7.0)", "pytest-asyncio", "ruff (>=0.1.0)", "tenuo[a2a,autogen,crewai,fastapi,fastmcp,google-adk,langchain,langgraph,mcp,oauth,openai,spiffe,spiffe-jwt,spiffe-workload-api,temporal]", "types-jsonschema", "types-pyyaml", "types-requests", "uvicorn"]
 fastapi = ["fastapi (>=0.100.0)", "uvicorn (>=0.20.0)"]
 fastmcp = ["fastmcp (>=3.2.1) ; python_full_version >= \"3.10.0\"", "mcp (>=1.9.4) ; python_full_version >= \"3.10.0\""]
 google-adk = ["google-adk (>=0.1)"]
 langchain = ["langchain (>=0.2)", "langchain-core (>=0.2)"]
 langgraph = ["langchain-core (>=0.2.27)", "langgraph (>=0.2)", "langgraph (>=1.0) ; python_full_version >= \"3.10.0\"", "langgraph-prebuilt (>=1.0.2) ; python_full_version >= \"3.10.0\""]
 mcp = ["mcp (>=1.9.4) ; python_full_version >= \"3.10.0\""]
+oauth = ["cryptography (>=42)", "pyjwt (>=2.8)"]
 openai = ["openai (>=1.0)", "openai-agents (>=0.3.3) ; python_full_version >= \"3.10.0\""]
+spiffe = ["cryptography (>=42)"]
+spiffe-jwt = ["pyjwt (>=2.8)", "tenuo[spiffe]"]
+spiffe-workload-api = ["grpcio (>=1.60)", "tenuo[spiffe]"]
 temporal = ["boto3 (>=1.26.0)", "google-cloud-secret-manager (>=2.16.0)", "temporalio (>=1.33.0) ; python_full_version >= \"3.10.0\""]
 
 [[package]]
@@ -2836,4 +2840,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "80b8ce586bbb649143733aa59752492a50a004ae5bb8a954874306401a623dfb"
+content-hash = "482b4244ff2d5857dad7cb57ab2fc126a0b54763f4e5636e1262237361ead47d"
