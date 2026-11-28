@@ -16,7 +16,7 @@ dependencies = [
     "sse-starlette>=2.0.0",
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
-    "tenuo[langchain]>=0.3.8,<0.4",
+    "tenuo[langchain]>=0.3.9,<0.4",
 ]
 
 [project.optional-dependencies]
